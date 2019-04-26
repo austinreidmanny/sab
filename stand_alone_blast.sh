@@ -270,7 +270,7 @@ date | tee -a ${LOG_FILE}
 # Run blast
 ${BLAST_TYPE} \
 -task ${BLAST_TASK} \
--db ${BLAST_DB_DIR}/${SAMPLES}_db \
+-db ${BLAST_DB_DIR}/${BLAST_DB_NAME} \
 -query ${VIRUS_QUERY} \
 -out ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt \
 -outfmt "6 qseqid sseqid evalue" \
