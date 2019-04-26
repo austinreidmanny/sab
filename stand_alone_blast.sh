@@ -1,111 +1,176 @@
 #!/bin/bash
 
-#SBATCH -t 00-00:59
-#SBATCH -p short
-#SBATCH --mem=15G
-#SBATCH -c 4
+###############################################################################################
+# ENSURE THE PIPELINE IS CALLED CORRECTLY
+###############################################################################################
 
-###############################################################################
-# USAGE:
-#
-# ./blast.sh CONTIGS.FASTA VIRAL_QUERY.FASTA QUERY_TYPE
-###############################################################################
+# Set up a usage statement in case this program is called incorrectly
+usage() { echo -e "\nERROR: Missing SRA accessions and/or input query and/or query type. \n\n" \
+              "Make sure to provide one (or more) SRA run numbers separated by commas, \n" \
+              "as well as a virus query (in fasta format), and indicate the query type \n" \
+              "as either 'nucl' or 'prot' (do not include the quotes). \n\n" \
+              "Proper usage: \n" \
+              "$0 -s SRR10001,SRR10002,SRR... -q VIRUS_QUERY -t nucl|prot \n\n" \
+              "Optional parameters: \n" \
+                                   "-e (evalue, e.g. 100, 1, or 1e-99) \n" \
+                                   "-d (sets program to discontiguous-megablast) \n" \
+                                   "-n (sets program to blastn) \n\n" \
+              "Example of a complex run: \n" \
+              "$0 -s SRX193147,SRX193148,SRX193149 -q tvv2_nt.fasta -t nucl -e 1e-3 -d \n\n" \
+              "Exiting program. Please retry with corrected parameters..." >&2; exit 1; }
 
-###############################################################################
-# OBJECTIVE
-#
-# This script is to be run after de novo assembly. 
-# Simply provide three parameters: 
-#   1. the name of the fasta file containing the contigs
-#   2. the name of the fasta file containing your query sequence
-#   3. query sequence type ('nucl' or 'prot') 
-# 
-# This bridges the gap of new viral sequences that are not yet in NR/NT.
-###############################################################################
+# Make sure the pipeline is invoked correctly, with project and sample names
+while getopts "s:q:t:e:dn" arg; do
+        case ${arg} in
+                s ) # Take in the sample name(s)
+                  set -f
+                  IFS=","
+                  ALL_SAMPLES=(${OPTARG}) # call this when you want every individual sample
+                        ;;
+                q ) # Take in the name of the virus query file (fasta format)
+                  VIRUS_QUERY=${OPTARG}
+                        ;;
+                t ) # Take in the query type (nucleotide or protein)
+                  QUERY_TYPE=${OPTARG}
+                        ;;
+                e) # set evalue
+                  E_VALUE=${OPTARG}
+                        ;;
+                d) # switch to discontiguous_megablast
+                  BLAST_TASK="dc-megablast"
+                        ;;
+                n) # switch to blastn
+                  BLAST_TASK="blastn"
+                        ;;
+                * ) # Display help
+                  usage
+                        ;;
+        esac
+done
+shift $(( OPTIND-1 ))
 
-# Set up the environment
-module load gcc/6.2.0
-module load python/3.6.0
-source ~/py3/bin/activate
+################################################################################################
+# PROCESS THE USER PROVIDED PARAMETERS
+################################################################################################
 
-# CHECK TO MAKE SURE THAT CONTIGS AND QUERY FILES ARE GIVEN. IF NOT, EXIT
-if [[ -z "$1" || -z "$2" || -z "$3" ]]
-	then echo "Contig file, virus query file and/or query type not provided"
-	echo "Usage: ./blast.sh CONTIGS.FASTA VIRUS_QUERY.FASTA QUERY_TYPE"
-	echo "Exiting."
-	exit 1
+# If the pipeline is not called correctly, tell that to the user and exit
+if [[ -z "${VIRUS_QUERY}" ]] || [[ -z "${ALL_SAMPLES}" ]] || [[ -z "${QUERY_TYPE}" ]] ; then
+        usage
 fi
 
-# Assign input files to variables
-CONTIGS=$1
-VIRUS_QUERY=$2
-QUERY_TYPE=$3
+# Retrieve the name of last sample (using older but cross-platform compatible BASH notation)
+LAST_SAMPLE=${ALL_SAMPLES[${#ALL_SAMPLES[@]}-1]}
 
-# Check to make sure that QUERY_TYPE provided correctly so correct BLAST will be called
+# Create a variable that other parts of this pipeline can use mostly for naming
+SAMPLES="${ALL_SAMPLES[0]}-${LAST_SAMPLE}"
+
+# Format the SRA accessions correctly for BLAST db creation
+DB_SAMPLES=`echo "\"${ALL_SAMPLES[@]}\""`
+
+# Reset global expansion
+set +f
+
+# Handle the query type provided by the user, using that to determine which type of blast to use
+## Nucleotide query
 if [[ ${QUERY_TYPE} == 'nucl' ]]; then
-        BLAST_TYPE='blastn'
-        BLAST_TASK='blastn'
+    BLAST_TYPE='blastn_vdb'
+    
+    # If -d (dc_megablst) or -n (blastn) flags were no given by user, default to megablast
+    if [[ -z "${BLAST_TASK}" ]]; then 
+        BLAST_TASK='megablast'
+    fi
 
+## Protein query
 elif [[ ${QUERY_TYPE} == 'prot' ]]; then
-        BLAST_TYPE='tblastn'
-        BLAST_TASK='tblastn'
+    BLAST_TYPE='tblastn_vdb'
+    BLAST_TASK='tblastn'
 
-else 
-        echo "QUERY_TYPE must be 'nucl' or 'prot'"
-        echo "exiting"
-        exit 2
-        
+## Other/Error
+else
+        echo "QUERY_TYPE is ${QUERY_TYPE}" 
+        echo "QUERY_TYPE must be 'nucl' or 'prot' (do not include quotes)"
+        usage 
 fi
 
-# Output exact commands into log file
-echo $0 ${@}
-cat $0
+# If e-value wasn provided by user, then set it to 1e-9
+if [[ -z ${E_VALUE} ]]; then
+    E_VALUE="1e-9"
+fi
+
+
+################################################################################
+# Set up number of CPUs to use (use all available)
+################################################################################
+
+# Use `nproc` if installed (Linux or MacOS with gnu-core-utils); otherwise use `systctl`
+{ \
+    command -v nproc > /dev/null && \
+    NUM_THREADS=`nproc` && \
+    echo "Number of processors available (according to nproc): ${NUM_THREADS}"; \
+} || \
+{ \
+    command -v sysctl > /dev/null && \
+    NUM_THREADS=`sysctl -n hw.ncpu` && \
+    echo "Number of processors available (according to sysctl): ${NUM_THREADS}";
+}
+
+################################################################################
+
+################################################################################
+# CREATE DIRECTORIES AND PREPARE NAMES FOR BLAST
+################################################################################
 
 # Create a directory to run & store the BLAST files
-mkdir -p blast
-
-# Indicate that database creation is beginning
-echo "Building BLAST database from given contigs" && date
+mkdir -p ${SAMPLES}
 
 # Create names for BLAST output file
 
 ## truncates file path, leaving just the filename itself
-CONTIGS_FILE=${CONTIGS##*/}
+VIRUS_QUERY_FILE=${VIRUS_QUERY##*/}
 
 ## eliminates file extension, giving a cleaner name for blast
-BLAST_NAME_CONTIGS=${CONTIGS_FILE%.*} 
+BLAST_NAME_VIRUS_QUERY=${VIRUS_QUERY_FILE%.*}
 
-## repeat for VIRUS_QUERY
-VIRUS_QUERY_FILE=${VIRUS_QUERY##*/}
-BLAST_NAME_VIRUS_QUERY=${VIRUS_QUERY%.*}
+# Create log file
+set -o errexit
+readonly LOG_FILE="${SAMPLES}/${BLAST_TYPE}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.log"
+touch ${LOG_FILE}
 
-# Make BLAST db from contigs
-makeblastdb \
--dbtype nucl \
--in ${CONTIGS} \
--title ${BLAST_NAME_CONTIGS} \
--out blast/${BLAST_NAME_CONTIGS}_db \
--logfile blast/${BLAST_NAME_CONTIGS}_makeblastdb.log
+# Read inputs back to the user and store them in the log
+echo -e "\n" \
+        "SRA Accessions provided: ${ALL_SAMPLES[@]} \n" \
+        "Virus query file provided: ${VIRUS_QUERY} \n" \
+        "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
+        "e-value: ${E_VALUE} \n" \
+        "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" | tee ${LOG_FILE}
 
-# Indicate that BLAST alignment is beginning
-echo "BLAST alignment beginning" && date
+###############################################################################
+# RUN BLAST
+################################################################################
 
-# Run nucleotide blast
+# Print time started and write to log file
+echo "Began running ${BLAST_TYPE} with samples ${SAMPLES} at:" | tee ${LOG_FILE}
+date | tee -a ${LOG_FILE}
+
+# Run blastn_vdb
 ${BLAST_TYPE} \
 -task ${BLAST_TASK} \
--db blast/${BLAST_NAME_CONTIGS}_db \
+-db ${DB_SAMPLES} \
 -query ${VIRUS_QUERY} \
--out blast/${BLAST_TYPE}.${BLAST_NAME_VIRUS_QUERY}.${BLAST_NAME_CONTIGS}.txt \
--evalue 10 \
--num_threads 4 \
--outfmt "6 qseqid sseqid evalue" \
--max_target_seqs 10000000
-# -max_hsps 1 \
+-out ${SAMPLES}/blastn_vdb.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.txt \
+-outfmt "6 qseqid evalue sseqid sseq" \
+-num_threads ${NUM_THREADS} \
+-evalue 1e-9 \
+-max_target_seqs 100000000
 
-# Indicate time of completion
-echo "Job finished at" && date
+# Print time completed and write to log file as well
+echo "Finished running ${BLAST_TYPE} at:" | tee -a ${LOG_FILE}
+date | tee -a ${LOG_FILE}
 
-# Make a token to indicate the job finished correctly
-echo "Finished BLAST (${BLAST_TYPE}), using ${VIRUS_QUERY} to query against ${CONTIGS}" >> \
-blast/blast.complete
+############################################################################################
+# Create FASTA sequence file of hits
+############################################################################################
+
+awk '{print ">"$3"\n"$4}' ${SAMPLES}/blastn_vdb.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.txt > \
+    ${SAMPLES}/blastn_vdb.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta
 
