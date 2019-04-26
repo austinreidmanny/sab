@@ -156,8 +156,7 @@ VIRUS_QUERY_FILE=${VIRUS_QUERY##*/}
 BLAST_NAME_VIRUS_QUERY=${VIRUS_QUERY_FILE%.*}
 
 # Create log file
-set -o errexit
-readonly LOG_FILE="${SAMPLES}/${BLAST_TYPE}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.log"
+readonly LOG_FILE="${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.log"
 touch ${LOG_FILE}
 
 # Copy initial launch command into the log
@@ -185,10 +184,12 @@ echo -e "\n" \
 ###################################################################################################
 # Download SRA files
 ###################################################################################################
+
+# Protect against from empty/unset variables (waited to now bc of all the parameter setting)
 set -u
+
 # Add the download from SRA step to the timelog file
-echo -e "Downloading input FASTQs from the SRA at: \n" \
-        "`date`" | tee -a ${LOG_FILE}
+echo -e "Downloading input FASTQs from the SRA at: `date` \n" | tee -a ${LOG_FILE}
 
 # Download fastq files from the SRA
 for SAMPLE in ${ALL_SAMPLES[@]};
@@ -204,12 +205,11 @@ for SAMPLE in ${ALL_SAMPLES[@]};
      --bufsize=1000MB \
      --curcache=1000MB \
      --outdir ${SRA_DIR} \
-     --force \
      ${SAMPLE} > ${LOG_FILE};
   done
 
-echo -e "Finished downloading FASTQs from the SRA at: \n" \
-        "`date`" | tee -a ${LOG_FILE}
+echo -e "\n Finished downloading FASTQs from the SRA at: \n" \
+        "`date` \n" | tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
@@ -222,9 +222,11 @@ BLAST_DB_NAME="`echo -e ${ALL_SAMPLES[@]} | tr ' ' '_'`_db"
 CONCATENATED_FASTQ=${BLAST_DB_DIR}/${BLAST_DB_NAME}.fq
 CONCATENATED_FASTA=${BLAST_DB_DIR}/${BLAST_DB_NAME}.fasta
 
-if [[ -f ${BLAST_DB_DIR}/${BLAST_DB_NAME} && -f ${CONCATENATED_FASTA} ]]; then
-  echo -e "BLAST DB for these SRA accessions already exists. \n" \
-          "Continuing to BLAST alignment..." | tee ${LOG_FILE}
+# Check to see if an intact blastdb & concatenated FASTA exist; if so, skip blastdb building step
+blastdbcmd -db ${BLAST_DB_DIR}/${BLAST_DB_NAME} -info > ${LOG_FILE}
+if [[ $? -eq 0 && -f ${CONCATENATED_FASTA} ]] ; then
+    echo -e "BLAST DB for these SRA accessions already exists. \n" \
+            "Continuing to BLAST alignment..." | tee ${LOG_FILE}
 
 else
   # Put starting time of blastdb building in log file
