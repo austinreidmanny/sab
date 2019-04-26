@@ -210,6 +210,8 @@ for SAMPLE in ${ALL_SAMPLES[@]};
 
 echo -e "\n Finished downloading FASTQs from the SRA at: \n" \
         "`date` \n" | tee -a ${LOG_FILE}
+
+echo -e "These SRA FASTQ files are located at: ${SRA_DIR} \n\n" | tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
