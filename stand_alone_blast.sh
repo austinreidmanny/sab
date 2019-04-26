@@ -71,12 +71,11 @@ SAMPLES="${ALL_SAMPLES[0]}-${LAST_SAMPLE}"
 
 # Reset global expansion
 set +f
-set -u
 
 # Handle the query type provided by the user, using that to determine which type of blast to use
 ## Nucleotide query
 if [[ ${QUERY_TYPE} == 'nucl' ]]; then
-    BLAST_TYPE='blastn_vdb'
+    BLAST_TYPE='blastn'
 
     # If -d (dc_megablst) or -n (blastn) flags were no given by user, default to megablast
     if [[ -z "${BLAST_TASK}" ]]; then
@@ -85,7 +84,7 @@ if [[ ${QUERY_TYPE} == 'nucl' ]]; then
 
 ## Protein query
 elif [[ ${QUERY_TYPE} == 'prot' ]]; then
-    BLAST_TYPE='tblastn_vdb'
+    BLAST_TYPE='tblastn'
     BLAST_TASK='tblastn'
 
 ## Other/Error
@@ -145,6 +144,7 @@ fi
 ###################################################################################################
 # CREATE DIRECTORIES AND PREPARE NAMES FOR BLAST
 ###################################################################################################
+
 # Create a directory to run & store the BLAST files
 mkdir -p ${SAMPLES}
 
@@ -185,6 +185,7 @@ echo -e "\n" \
 ###################################################################################################
 # Download SRA files
 ###################################################################################################
+set -u
 # Add the download from SRA step to the timelog file
 echo -e "Downloading input FASTQs from the SRA at: \n" \
         "`date`" | tee -a ${LOG_FILE}
