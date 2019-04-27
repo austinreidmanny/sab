@@ -205,7 +205,7 @@ for SAMPLE in ${ALL_SAMPLES[@]};
      --bufsize=1000MB \
      --curcache=1000MB \
      --outdir ${SRA_DIR} \
-     ${SAMPLE} > ${LOG_FILE};
+     ${SAMPLE} >> ${LOG_FILE};
   done
 
 echo -e "\n Finished downloading FASTQs from the SRA at: \n" \
