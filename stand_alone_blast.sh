@@ -291,7 +291,7 @@ date | tee -a ${LOG_FILE}
 # Create FASTA sequence file of hits
 ###################################################################################################
 seqtk subseq  ${CONCATENATED_FASTA} \
-  <(cut -f 2 ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt) > \
+  <(cut -f 2 ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt | sort -u) > \
   ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta
 
 # Print number of hits and save to log file
