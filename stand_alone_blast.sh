@@ -225,7 +225,7 @@ CONCATENATED_FASTQ=${BLAST_DB_DIR}/${BLAST_DB_NAME}.fq
 CONCATENATED_FASTA=${BLAST_DB_DIR}/${BLAST_DB_NAME}.fasta
 
 # Check to see if an intact blastdb & concatenated FASTA exist; if so, skip blastdb building step
-blastdbcmd -db ${BLAST_DB_DIR}/${BLAST_DB_NAME} -info > ${LOG_FILE}
+blastdbcmd -db ${BLAST_DB_DIR}/${BLAST_DB_NAME} -info >> ${LOG_FILE} 2>&1
 if [[ $? -eq 0 && -f ${CONCATENATED_FASTA} ]] ; then
     echo -e "BLAST DB for these SRA accessions already exists. \n" \
             "Continuing to BLAST alignment..." | tee ${LOG_FILE}
