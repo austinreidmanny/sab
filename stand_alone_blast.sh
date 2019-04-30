@@ -160,7 +160,7 @@ readonly LOG_FILE="${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}
 touch ${LOG_FILE}
 
 # Copy initial launch command into the log
-echo -e "sab was launched with the following command: \n $0 ${@} \n" >> ${LOG_FILE}
+echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 
 # Set directory to save SRA files
 SRA_DIR="${HOME}/Documents/Research/sra/"
