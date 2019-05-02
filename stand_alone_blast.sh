@@ -14,7 +14,7 @@ usage() { echo -e "\nERROR: Missing SRA accessions and/or input query and/or que
               "Optional parameters: \n" \
                 "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
-                "-p (path to directory for saving SRA files; [default='~/Documents/Research/sra/'] )"
+                "-p (path to directory for saving SRA files; [default='~/Documents/Research/sra/'] ) \n" \
                 "-d (sets nucloetide program to discontiguous-megablast; [default=megablast] ) \n" \
                 "-n (sets nucleotide program to blastn; [default=megablast] ) \n\n" \
               "Example of a complex run: \n" \
