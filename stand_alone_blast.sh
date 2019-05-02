@@ -91,13 +91,12 @@ fi
 
 # If local files are provided, check that only forward+reverse reads OR unpaired reads are given
 if [[ ! -z "${LOCAL_FILES}" ]]; then
-  {
-     {  [[ ! -z "${FORWARD_READS}" ]] && [[ ! -z "${REVERSE_READS}" ]] } \
-     || [[ ! -z "${UNPAIRED_READS}" ]] \
-  } \
-  || { echo "If using local files, must provide only forward+reverse reads OR single file with unpaired reads";
-       usage
-     }
+     if [[ ! -z "${FORWARD_READS}" ]] && [[ ! -z "${REVERSE_READS}" ]]; then
+         if [[ ! -z "${UNPAIRED_READS}" ]]; then
+             echo "If using local files, must provide only forward+reverse reads OR single file with unpaired reads";
+             usage
+         fi
+     fi
 fi
 
 # If using SRA files, name the samples according to first & last
@@ -111,10 +110,15 @@ if [[ -z "${LOCAL_FILES}" ]]; then
 
 # If local files are provided, use the naming scheme of the forward reads files
 else
-  FORWARD_READS_FILE_WITH_NO_PATH=${FORWARD_READS##*/}
-  FORWARD_READS_NO_PATH_NO_EXT=${FORWARD_READS_FILE_WITH_NO_PATH%.*}
-  SAMPLES=${FORWARD_READS_NO_PATH_NO_EXT}
-  ALL_SAMPLES=${SAMPLES}
+    if [[ ! -z "${FORWARD_READS}" ]] && [[ ! -z "${REVERSE_READS}" ]]; then
+        FORWARD_READS_FILE_WITH_NO_PATH=${FORWARD_READS##*/}
+        FORWARD_READS_NO_PATH_NO_EXT=${FORWARD_READS_FILE_WITH_NO_PATH%.*}
+
+        REVERSE_READS_FILE_WITH_NO_PATH=${REVERSE_READS##*/}
+        REVERSE_READS_NO_PATH_NO_EXT=${REVERSE_READS_FILE_WITH_NO_PATH%.*}
+
+        SAMPLES=${FORWARD_READS_NO_PATH_NO_EXT}
+        ALL_SAMPLES=${SAMPLES}
 
 fi
 
@@ -214,6 +218,7 @@ echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 # Set directory to save SRA files
 if [[ -z ${SRA_DIR} ]]; then
   SRA_DIR="${HOME}/Documents/Research/sra/"
+fi
 
 mkdir -p ${SRA_DIR}
 
@@ -233,7 +238,7 @@ if [[ -z "${LOCAL_FILES}" ]]; then
           "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
 else
   echo -e "\n" \
-          "User-provided files for sample: ${ALL_SAMPLES[@]} \n" \
+          "User-provided files for sample: ${FORWARD_READS_NO_PATH_NO_EXT} ${REVERSE_READS_NO_PATH_NO_EXT} \n" \
           "Virus query file provided: ${VIRUS_QUERY} \n" \
           "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
           "e-value: ${E_VALUE} \n" \
@@ -241,6 +246,8 @@ else
           "Number of processors to use: ${NUM_THREADS} \n" \
           "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
 fi
+
+
 ###################################################################################################
 
 ###################################################################################################
@@ -264,8 +271,6 @@ else
   ##################################################################################################
   # Download SRA files
   ##################################################################################################
-  # Protect against from empty/unset variables (waited to now bc of all the parameter setting)
-  set -u
 
   # If local provided files, just concatenate them together (if paired-end) or call the unpaired as the concat fastq
   if [[ ! -z ${LOCAL_FILES} ]]; then
