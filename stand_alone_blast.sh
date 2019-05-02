@@ -120,6 +120,13 @@ else
         SAMPLES=${FORWARD_READS_NO_PATH_NO_EXT}
         ALL_SAMPLES=${SAMPLES}
 
+    elif [[ ! -z "${UNPAIRED_READS}" ]]; then
+        UNPAIRED_READS_FILE_WITH_NO_PATH=${UNPAIRED_READS##*/}
+        UNPAIRED_READS_NO_PATH_NO_EXT=${UNPAIRED_READS_FILE_WITH_NO_PATH%.*}
+
+        SAMPLES=${UNPAIRED_READS_NO_PATH_NO_EXT}
+        ALL_SAMPLES=$SAMPLES}
+    fi
 fi
 
 # Reset global expansion
@@ -237,7 +244,8 @@ if [[ -z "${LOCAL_FILES}" ]]; then
           "Number of processors to use: ${NUM_THREADS} \n" \
           "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
 else
-  echo -e "\n" \
+    if [[ -z ${UNPAIRED_READS} ]]; then
+        echo -e "\n" \
           "User-provided files for sample: ${FORWARD_READS_NO_PATH_NO_EXT} ${REVERSE_READS_NO_PATH_NO_EXT} \n" \
           "Virus query file provided: ${VIRUS_QUERY} \n" \
           "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
@@ -245,8 +253,17 @@ else
           "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
           "Number of processors to use: ${NUM_THREADS} \n" \
           "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+    else
+        echo -e "\n" \
+          "User-provided files for sample: ${UNPAIRED_READS} \n" \
+          "Virus query file provided: ${VIRUS_QUERY} \n" \
+          "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
+          "e-value: ${E_VALUE} \n" \
+          "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
+          "Number of processors to use: ${NUM_THREADS} \n" \
+          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+    fi
 fi
-
 
 ###################################################################################################
 
@@ -312,7 +329,6 @@ else
   ##################################################################################################
   # MAKE BLASTDB FROM TRANSCRIPTOME FILES
   ##################################################################################################
-
   # Put starting time of blastdb building in log file
   echo -e "Building BLAST database from SRA files at: \n `date`" | tee -a ${LOG_FILE}
 
@@ -343,7 +359,7 @@ else
   -logfile ${BLAST_DB_DIR}/${SAMPLES}_makeblastdb.log
 
   # Delete temporary concatenated fastq object (unless it's just the original unpaired reads file)
-  if [[ -z ${UNPAIRED_READS} ]]; then rm ${CONCATENATED_FASTQ}; fi
+  if [[ -z "${UNPAIRED_READS}" ]] ; then rm ${CONCATENATED_FASTQ}; fi
 
   # Put finishing time of blastdb building in log file
   echo -e "Completed buiding BLAST database at: `date` \n" \
