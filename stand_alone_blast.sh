@@ -14,6 +14,7 @@ usage() { echo -e "\nERROR: Missing SRA accessions and/or input query and/or que
               "Optional parameters: \n" \
                 "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
+                "-p (path to directory for saving SRA files; [default='~/Documents/Research/sra/'] )"
                 "-d (sets nucloetide program to discontiguous-megablast; [default=megablast] ) \n" \
                 "-n (sets nucleotide program to blastn; [default=megablast] ) \n\n" \
               "Example of a complex run: \n" \
@@ -21,7 +22,7 @@ usage() { echo -e "\nERROR: Missing SRA accessions and/or input query and/or que
               "Exiting program. Please retry with corrected parameters..." >&2; exit 1; }
 
 # Make sure the pipeline is invoked correctly, with project and sample names
-while getopts "s:q:t:e:m:dn" arg; do
+while getopts "s:q:t:e:m:p:dn1:2:u:" arg; do
         case ${arg} in
                 s ) # Take in the sample name(s)
                   set -f
@@ -34,18 +35,33 @@ while getopts "s:q:t:e:m:dn" arg; do
                 t ) # Take in the query type (nucleotide or protein)
                   QUERY_TYPE=${OPTARG}
                         ;;
-                e) # set evalue
+                e ) # set evalue
                   E_VALUE=${OPTARG}
                         ;;
-                m) # set max memory to use (in GB; if any letters are entered, discard those)
+                m ) # set max memory to use (in GB; if any letters are entered, discard those)
                   MEMORY_ENTERED=${OPTARG}
                   MEMORY_TO_USE=$(echo $MEMORY_ENTERED | sed 's/[^0-9]*//g')
                         ;;
-                d) # switch to discontiguous_megablast
+                p ) #set path to SRA FILES
+                  SRA_DIR=${OPTARG}
+                        ;;
+                d ) # switch to discontiguous_megablast
                   BLAST_TASK="dc-megablast"
                         ;;
-                n) # switch to blastn
+                n ) # switch to blastn
                   BLAST_TASK="blastn"
+                        ;;
+                1 ) # if providing local transcriptome with paired-end reads, give path to forward reads fastq
+                  FORWARD_READS=${OPTARG}
+                  LOCAL_FILES="TRUE"
+                        ;;
+                2 ) # if providing local transcriptome with paired-end reads, give path to reverse reads fastq
+                  REVERSE_READS=${OPTARG}
+                  LOCAL_FILES="TRUE"
+                        ;;
+                u ) # if user wants to provide local transcriptome with unpaired reads, give path to reads fastq
+                  UNPAIRED_READS=${OPTARG}
+                  LOCAL_FILES="TRUE"
                         ;;
                 * ) # Display help
                   usage
@@ -59,15 +75,48 @@ shift $(( OPTIND-1 ))
 # PROCESS THE USER PROVIDED PARAMETERS
 ###################################################################################################
 # If the pipeline is not called correctly, tell that to the user and exit
-if [[ -z "${VIRUS_QUERY}" ]] || [[ -z "${ALL_SAMPLES}" ]] || [[ -z "${QUERY_TYPE}" ]] ; then
-        usage
+if [[ -z "${VIRUS_QUERY}" ]] || [[ -z "${QUERY_TYPE}" ]] ; then
+  usage
 fi
 
-# Retrieve the name of last sample (using older but cross-platform compatible BASH notation)
-LAST_SAMPLE=${ALL_SAMPLES[${#ALL_SAMPLES[@]}-1]}
+# Check that SRA accessions or local files were provided
+if [[ ! -z "${ALL_SAMPLES}" ]] && [[ ! -z "${LOCAL_FILES}" ]] ; then
+  usage
+fi
 
-# Create a variable that other parts of this pipeline can use mostly for naming
-SAMPLES="${ALL_SAMPLES[0]}-${LAST_SAMPLE}"
+# But not both
+if [[ -z "${ALL_SAMPLES}" ]] && [[ -z "${LOCAL_FILES}" ]] ; then
+  usage
+fi
+
+# If local files are provided, check that only forward+reverse reads OR unpaired reads are given
+if [[ ! -z "${LOCAL_FILES}" ]]; then
+  {
+     {  [[ ! -z "${FORWARD_READS}" ]] && [[ ! -z "${REVERSE_READS}" ]] } \
+     || [[ ! -z "${UNPAIRED_READS}" ]] \
+  } \
+  || { echo "If using local files, must provide only forward+reverse reads OR single file with unpaired reads";
+       usage
+     }
+fi
+
+# If using SRA files, name the samples according to first & last
+if [[ -z "${LOCAL_FILES}" ]]; then
+
+  # Retrieve the name of last sample (using older but cross-platform compatible BASH notation)
+  LAST_SAMPLE=${ALL_SAMPLES[${#ALL_SAMPLES[@]}-1]}
+
+  # Create a variable that other parts of this pipeline can use mostly for naming
+  SAMPLES="${ALL_SAMPLES[0]}-${LAST_SAMPLE}"
+
+# If local files are provided, use the naming scheme of the forward reads files
+else
+  FORWARD_READS_FILE_WITH_NO_PATH=${FORWARD_READS##*/}
+  FORWARD_READS_NO_PATH_NO_EXT=${FORWARD_READS_FILE_WITH_NO_PATH%.*}
+  SAMPLES=${FORWARD_READS_NO_PATH_NO_EXT}
+  ALL_SAMPLES=${SAMPLES}
+
+fi
 
 # Reset global expansion
 set +f
@@ -163,7 +212,9 @@ touch ${LOG_FILE}
 echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 
 # Set directory to save SRA files
-SRA_DIR="${HOME}/Documents/Research/sra/"
+if [[ -z ${SRA_DIR} ]]; then
+  SRA_DIR="${HOME}/Documents/Research/sra/"
+
 mkdir -p ${SRA_DIR}
 
 # Make directory to save resulting BLASTDB
@@ -171,51 +222,29 @@ BLAST_DB_DIR=${SRA_DIR}/blastdbs
 mkdir -p ${BLAST_DB_DIR}
 
 # Read inputs back to the user and store them in the log
-echo -e "\n" \
-        "SRA Accessions provided: ${ALL_SAMPLES[@]} \n" \
-        "Virus query file provided: ${VIRUS_QUERY} \n" \
-        "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
-        "e-value: ${E_VALUE} \n" \
-        "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
-        "Number of processors to use: ${NUM_THREADS} \n" \
-        "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+if [[ -z "${LOCAL_FILES}" ]]; then
+  echo -e "\n" \
+          "SRA Accessions provided: ${ALL_SAMPLES[@]} \n" \
+          "Virus query file provided: ${VIRUS_QUERY} \n" \
+          "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
+          "e-value: ${E_VALUE} \n" \
+          "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
+          "Number of processors to use: ${NUM_THREADS} \n" \
+          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+else
+  echo -e "\n" \
+          "User-provided files for sample: ${ALL_SAMPLES[@]} \n" \
+          "Virus query file provided: ${VIRUS_QUERY} \n" \
+          "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
+          "e-value: ${E_VALUE} \n" \
+          "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
+          "Number of processors to use: ${NUM_THREADS} \n" \
+          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+fi
 ###################################################################################################
 
 ###################################################################################################
-# Download SRA files
-###################################################################################################
-
-# Protect against from empty/unset variables (waited to now bc of all the parameter setting)
-set -u
-
-# Add the download from SRA step to the timelog file
-echo -e "Downloading input FASTQs from the SRA at: `date` \n" | tee -a ${LOG_FILE}
-
-# Download fastq files from the SRA
-for SAMPLE in ${ALL_SAMPLES[@]};
-  do \
-     echo -e "Downloading FASTQ file(s) for ${SAMPLE} at: \n `date`" | tee -a ${LOG_FILE};
-     fasterq-dump \
-     --split-3 \
-     -t /tmp \
-     --progress --verbose \
-     --skip-technical --rowid-as-name --print-read-nr \
-     --threads=${NUM_THREADS} \
-     --mem=${MEMORY_TO_USE}"GB" \
-     --bufsize=1000MB \
-     --curcache=1000MB \
-     --outdir ${SRA_DIR} \
-     ${SAMPLE} >> ${LOG_FILE};
-  done
-
-echo -e "\n Finished downloading FASTQs from the SRA at: \n" \
-        "`date` \n" | tee -a ${LOG_FILE}
-
-echo -e "These SRA FASTQ files are located at: ${SRA_DIR} \n\n" | tee -a ${LOG_FILE}
-###################################################################################################
-
-###################################################################################################
-# MAKE BLASTDB FROM SRA FILES
+# BLAST DATABASE STEPS
 ###################################################################################################
 # Devise name for blast database from every SRA given (eg: SRA1_SRA2_SRA3_db)
 BLAST_DB_NAME="`echo -e ${ALL_SAMPLES[@]} | tr ' ' '_'`_db"
@@ -231,17 +260,71 @@ if [[ $? -eq 0 && -f ${CONCATENATED_FASTA} ]] ; then
             "Continuing to BLAST alignment..." | tee ${LOG_FILE}
 
 else
+
+  ##################################################################################################
+  # Download SRA files
+  ##################################################################################################
+  # Protect against from empty/unset variables (waited to now bc of all the parameter setting)
+  set -u
+
+  # If local provided files, just concatenate them together (if paired-end) or call the unpaired as the concat fastq
+  if [[ ! -z ${LOCAL_FILES} ]]; then
+
+      if [[ -z ${UNPAIRED_READS} ]] ; then
+        cat ${FORWARD_READS} ${REVERSE_READS} > ${CONCATENATED_FASTQ}
+      else
+          ${CONCATENATED_FASTQ}=${UNPAIRED_READS}
+      fi
+
+  else
+      # Add the download from SRA step to the timelog file
+      echo -e "Downloading input FASTQs from the SRA at: `date` \n" | tee -a ${LOG_FILE}
+
+      # Download fastq files from the SRA
+      for SAMPLE in ${ALL_SAMPLES[@]};
+        do \
+           echo -e "Downloading FASTQ file(s) for ${SAMPLE} at: \n `date`" | tee -a ${LOG_FILE};
+           fasterq-dump \
+           --split-3 \
+           -t /tmp \
+           --progress --verbose \
+           --skip-technical --rowid-as-name --print-read-nr \
+           --threads=${NUM_THREADS} \
+           --mem=${MEMORY_TO_USE}"GB" \
+           --bufsize=1000MB \
+           --curcache=1000MB \
+           --outdir ${SRA_DIR} \
+           ${SAMPLE} >> ${LOG_FILE};
+        done
+
+      echo -e "\n Finished downloading FASTQs from the SRA at: \n" \
+              "`date` \n" | tee -a ${LOG_FILE}
+
+      echo -e "These SRA FASTQ files are located at: ${SRA_DIR} \n\n" | tee -a ${LOG_FILE}
+  fi
+  ##################################################################################################
+
+  ##################################################################################################
+  # MAKE BLASTDB FROM TRANSCRIPTOME FILES
+  ##################################################################################################
+
   # Put starting time of blastdb building in log file
   echo -e "Building BLAST database from SRA files at: \n `date`" | tee -a ${LOG_FILE}
 
-  # If there is already a concat fastq, then it could be a partial file, so delete it
-  if [[ -f ${CONCATENATED_FASTQ} ]]; then rm ${CONCATENATED_FASTQ}; fi
+  # If using SRA files, then concatenate the samples together
+  if [[ -z ${LOCAL_FILES} ]]; then
 
-  # For each SRA accession, add its reads to the master concatendated fastq file
-  for SRA_FASTQ in ${ALL_SAMPLES[@]}
-    do \
-      cat ${SRA_DIR}/${SRA_FASTQ}*fastq >> ${CONCATENATED_FASTQ};
-    done
+      # If there is already a concat fastq, then it could be a partial file, so delete it
+      if [[ -f ${CONCATENATED_FASTQ} ]]; then
+        rm ${CONCATENATED_FASTQ}
+      fi
+
+      # For each SRA accession, add its reads to the master concatendated fastq file
+      for SRA_FASTQ in ${ALL_SAMPLES[@]}
+        do \
+          cat ${SRA_DIR}/${SRA_FASTQ}*fastq >> ${CONCATENATED_FASTQ};
+        done
+  fi
 
   # Transform that FASTQ into FASTA so it's readable by BLAST
   seqtk seq -A ${CONCATENATED_FASTQ} > ${CONCATENATED_FASTA}
@@ -254,8 +337,8 @@ else
   -out ${BLAST_DB_DIR}/${BLAST_DB_NAME} \
   -logfile ${BLAST_DB_DIR}/${SAMPLES}_makeblastdb.log
 
-  # Delete temporary concatenated fastq object
-  rm ${CONCATENATED_FASTQ}
+  # Delete temporary concatenated fastq object (unless it's just the original unpaired reads file)
+  if [[ -z ${UNPAIRED_READS} ]]; then rm ${CONCATENATED_FASTQ}; fi
 
   # Put finishing time of blastdb building in log file
   echo -e "Completed buiding BLAST database at: `date` \n" \
