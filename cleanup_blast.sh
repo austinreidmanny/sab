@@ -4,23 +4,34 @@
 # ENSURE THE SCRIPT IS CALLED CORRECTLY
 ###################################################################################################
 usage() { echo -e "The objective of this script is to clean up the results of stand-alone-blast (sab). \n\n" \
-                  "This program takes in a FASTA (given as output by sab) of reads that mapped " \
+                  "This program takes in a FASTA (given as output by sab) of reads that mapped \n" \
                   "to the previous reference and searches those again, this time against the \n" \
-                  "entire NCBI nonredundant (nr) database. The output of this script is a \n" \
+                  "RefSeq Viral nucleotide database. The output of this script is a \n" \
                   "tab-delimited text file with the following fields: \n" \
                   "(1) name of the read (2) taxon of best hit in NCBI (3) e-value score of match \n\n" \
                   "Usage: $0 -i input.fasta [options] \n\n" \
                   "Output: input.cleanup.results.txt \n\n" \
                   "Optional parameters: \n" \
-                        "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
+                        "-e (evalue, e.g. 100, 1, or 1e-99; [default = 10]) \n" \
                         "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
-                        "-p (path to directory for NCBI nt database; [default='~/Documents/Research/sra/blastdbs/'] ) \n" \
+                        "-p (path to directory for RefSeq Viral database; " \
+                            "[default='~/Documents/Research/sra/blastdbs/viral_refseq_db'] ) \n" \
                         "-n (sets nucleotide program to blastn; [default= dc-megablast] ) \n" \
                         "-g (sets nucleotide program to megablast; [default= dc-megablast] ) \n\n" \
                       "Example of a complex run: \n" \
                       "$0 -i input.fasta -e 1e-3 -m 26 -g \n\n" \
                       "Exiting program. Please retry with corrected parameters..." >&2 && exit 1
         }
+###################################################################################################
+
+###################################################################################################
+# Note about the RefSeq Viral nucleotide database used
+###################################################################################################
+# User will need to download this database from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/viral/ ,
+# download the two files 'viral.1.1.genomic.fna.gz' and 'viral.2.1.genomic.genomic.fna.gz', 
+# unzip and concatenate them together into a single viral refseq fasta file, and use that as
+# input into the NCBI `makeblastdb` tool to make a blast nucleotide database.
+# For posterity, this tool was tested with these steps performed at 10:30AM on 2019-05-03
 ###################################################################################################
 
 ###################################################################################################
@@ -60,13 +71,13 @@ shift $(( OPTIND-1 ))
 ###################################################################################################
 # If no input is provided, tell that to the user and exit
 if [[ -z "${SEQDUMP}" ]] ; then
-    echo -e "ERROR: No input detected. \n\n"
+    echo -e "\nERROR: No input detected. \n"
     usage
 fi
 
 # If e-value wasn't provided by user, then set it to 1e-9
 if [[ -z ${E_VALUE} ]]; then
-    E_VALUE="1e-9"
+    E_VALUE="10"
 fi
 
 # If -n (blastn) or -g (megablast) flags were not given by user, default to dc-megablast
@@ -76,7 +87,7 @@ fi
 
 # If path to NCBI nt database was not given, give default path
 if [[ -z "${PATH_TO_NT_DB}" ]]; then
-    PATH_TO_NT_DB="${HOME}/Documents/Research/sra/blastdbs/nt"
+    PATH_TO_NT_DB="${HOME}/Documents/Research/sra/blastdbs/viral_refseq_nt"
 fi
 ###################################################################################################
 
@@ -135,7 +146,7 @@ echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 # Read inputs back to the user and store them in the log
 echo -e "\n" \
         "Input fasta (seqdump) file provided: ${SEQDUMP} \n" \
-        "Database used: NCBI NT databse (located at: ${PATH_TO_NT_DB})"
+        "Database used: NCBI RefSeq Viral nucleotide database (located at: ${PATH_TO_NT_DB})"
         "e-value: ${E_VALUE} \n" \
         "Blast program: nucleotide-blast > ${BLAST_TASK} \n" \
         "Number of processors to use: ${NUM_THREADS} \n" \
@@ -160,8 +171,8 @@ blastn \
 # OUTPUT LOGS
 ###################################################################################################
 # Make a token to indicate the job finished correctly
-echo "Finished nucleotide BLAST (${BLAST_TASK}), using ${SEQDUMP} to query against NCBI NT database" | \
-tee ${LOG_FILE}
+echo "Finished nucleotide BLAST (${BLAST_TASK}), using ${SEQDUMP} to query against RefSeq Viral " \
+     "nucleotide database" | tee ${LOG_FILE}
 
 # Indicate time of completion
 echo "Job finished at" && date | tee ${LOG_FILE}
