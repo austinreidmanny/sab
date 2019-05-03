@@ -179,7 +179,7 @@ blastn \
 sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
     ${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted
 
-sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | sort -u -k1,1 > \
+sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | sort -u -k1,1 | sort -k2,2 -g > \
     ${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt
 
 # Overwrite the duplicates results files
