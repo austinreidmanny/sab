@@ -3,12 +3,14 @@
 ###################################################################################################
 # ENSURE THE SCRIPT IS CALLED CORRECTLY
 ###################################################################################################
+set -eo pipefail
+
 usage() { echo -e "The objective of this script is to clean up the results of stand-alone-blast (sab). \n\n" \
                   "This program takes in a FASTA (given as output by sab) of reads that mapped \n" \
                   "to the previous reference and searches those again, this time against the \n" \
                   "RefSeq Viral nucleotide database. The output of this script is a \n" \
                   "tab-delimited text file with the following fields: \n" \
-                  "(1) name of the read (2) taxon of best hit in NCBI (3) e-value score of match \n\n" \
+                  "(1) name of the read (2) title of best hit in NCBI (3) e-value score of match \n\n" \
                   "Usage: $0 -i input.fasta [options] \n\n" \
                   "Output: input.cleanup.results.txt \n\n" \
                   "Optional parameters: \n" \
@@ -37,7 +39,7 @@ usage() { echo -e "The objective of this script is to clean up the results of st
 ###################################################################################################
 # TAKE IN THE USER-PROVIDED PARAMETERS
 ###################################################################################################
-while getopts "i:e:m:p:n*:" arg; do
+while getopts "i:e:m:p:ng*:" arg; do
         case ${arg} in
                 i ) # Take in the input fasta
                   SEQDUMP=${OPTARG}
@@ -98,12 +100,12 @@ fi
 { \
     command -v nproc > /dev/null && \
     NUM_THREADS=`nproc` && \
-    echo "Number of processors available (according to nproc): ${NUM_THREADS}"; \
+    echo "Number of processors available (according to nproc): ${NUM_THREADS}" > /dev/null; \
 } || \
 { \
     command -v sysctl > /dev/null && \
     NUM_THREADS=`sysctl -n hw.ncpu` && \
-    echo "Number of processors available (according to sysctl): ${NUM_THREADS}";
+    echo "Number of processors available (according to sysctl): ${NUM_THREADS}" > /dev/null;
 }
 
 # Set memory usage
@@ -137,7 +139,7 @@ BLAST_NAME_SEQDUMP=${SEQDUMP_FILE%.*}
 # READ ALL INPUTS BACK TO USER
 ###################################################################################################
 # Create log file
-LOG_FILE=./${BLAST_NAME_SEQDUMP}.cleanup.log
+LOG_FILE=./blast_cleanup.${BLAST_NAME_SEQDUMP}.log
 touch ${LOG_FILE}
 
 # Copy initial launch command into the log
@@ -146,7 +148,7 @@ echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 # Read inputs back to the user and store them in the log
 echo -e "\n" \
         "Input fasta (seqdump) file provided: ${SEQDUMP} \n" \
-        "Database used: NCBI RefSeq Viral nucleotide database (located at: ${PATH_TO_NT_DB})"
+        "Database used: ${PATH_TO_NT_DB} \n" \
         "e-value: ${E_VALUE} \n" \
         "Blast program: nucleotide-blast > ${BLAST_TASK} \n" \
         "Number of processors to use: ${NUM_THREADS} \n" \
@@ -158,22 +160,63 @@ echo -e "\n" \
 ###################################################################################################
 blastn \
 -task ${BLAST_TASK} \
--db ${PATH_TO_NT_DB}\
+-db ${PATH_TO_NT_DB} \
 -query ${SEQDUMP} \
 -out ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt \
 -evalue ${E_VALUE} \
 -num_threads ${NUM_THREADS} \
--outfmt "6 qseqid sseqid evalue" \
--max_target_seqs 10000000
+-outfmt "6 qseqid evalue stitle" \
+-max_target_seqs 10000000 \
+-max_hsps 1 
+
+# max_hsps only restricts to best level match PER VIRUS; 
+# if one read matches to multiple viruses, there will be multiple viruses reported
+
+# Sort the output, first by name, then by evalue
+#   if one read has multiple results (bc large database, lots of alignments made, some spurious high
+#   evalue results will be included); alert the user in the log (below); in the results file, just 
+#   include the best hit 
+sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
+    ${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted
+
+sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | sort -u -k1,1 > \
+    ${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt
+
+# Overwrite the duplicates results files
+mv ./${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt
 ###################################################################################################
 
 ###################################################################################################
 # OUTPUT LOGS
 ###################################################################################################
 # Make a token to indicate the job finished correctly
-echo "Finished nucleotide BLAST (${BLAST_TASK}), using ${SEQDUMP} to query against RefSeq Viral " \
-     "nucleotide database" | tee ${LOG_FILE}
+echo -e "Finished nucleotide BLAST (${BLAST_TASK}), using ${BLAST_NAME_SEQDUMP} to query against RefSeq Viral " \
+     "nucleotide database \n" | tee -a ${LOG_FILE}
 
 # Indicate time of completion
-echo "Job finished at" && date | tee ${LOG_FILE}
+date | tee -a ${LOG_FILE}
+
+# Print number of sequences in the input file:
+echo -e "\nNumber of sequences in original input file (${BLAST_NAME_SEQDUMP}): "\
+        "`grep -c "^>" ${SEQDUMP}`" | tee -a ${LOG_FILE}
+
+# Print number of hits
+echo -e "Number of hits:" \
+        "`wc -l ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | cut -d " " -f 5` \n" |  tee -a ${LOG_FILE}
+
+# Print number of reads that mapped more than once, along with the read names
+echo -e "Total number of multiple-mapped reads: " \
+        "`cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted | uniq -d | wc -l`" | \
+        tee -a ${LOG_FILE}
+
+echo -e "\nReads that mapped to more than one virus: \n" >> tee -a ${LOG_FILE}
+cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted | uniq -d >> ${LOG_FILE}
+
+echo -e "\n Multiple-mapped reads could be a function of a high/generous e-value cutoff \n" \
+            "or could be a biologically relevant issue. Users are encouraged to look at those reads \n" \
+            "along with what they mapped to. Only the best hit is included in the results file. \n" \
+            "However, a list of the multi-mapped reads is stored in the log file: ${LOG_FILE}" | tee -a ${LOG_FILE} 
+
+# Delete 'sorted' output file that was important for calculating duplicates
+rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted
 ###################################################################################################
