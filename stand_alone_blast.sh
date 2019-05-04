@@ -200,6 +200,9 @@ command -v seqtk > /dev/null || \
     echo "Number of processors available (according to sysctl): ${NUM_THREADS}";
 }
 
+# User reported Segmentation Fault; temporary disabling multi-threading
+NUM_THREADS=1
+
 # Set memory usage
 if [[ -z ${MEMORY_TO_USE} ]]; then
     echo "No memory limit set by user. Defaulting to 16GB"
