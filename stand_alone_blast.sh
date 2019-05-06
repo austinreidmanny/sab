@@ -186,24 +186,35 @@ command -v seqtk > /dev/null || \
 ###################################################################################################
 
 ###################################################################################################
-# Set up number of CPUs to use (use all available) and RAM (pls configure)
+# Set up number of CPUs to use and RAM
 ###################################################################################################
+# CPUs (aka threads aka processors aka cores):
+#   If 8 CPUs were used, BLAST fails & gives Segmentation Fault. Error stopped if <= 4 CPUs are used
+#   Strategy: Use up to 4 CPUs, or maximum available if less than 4 CPUs available
+
 # Use `nproc` if installed (Linux or MacOS with gnu-core-utils); otherwise use `systctl`
 { \
     command -v nproc > /dev/null && \
-    NUM_THREADS=`nproc` && \
+    MAX_NUM_THREADS=`nproc` && \
     echo "Number of processors available (according to nproc): ${NUM_THREADS}"; \
 } || \
 { \
     command -v sysctl > /dev/null && \
-    NUM_THREADS=`sysctl -n hw.ncpu` && \
+    MAX_NUM_THREADS=`sysctl -n hw.ncpu` && \
     echo "Number of processors available (according to sysctl): ${NUM_THREADS}";
 }
 
-# User reported Segmentation Fault; temporary disabling multi-threading
-NUM_THREADS=1
+# If maximum available threads is less than or equal to 4, use all threads; else use 4
+if (( ${MAX_NUM_THREADS} > 4 )); then
+    NUM_THREADS=4
+elif (( ${MAX_NUM_THREADS} <= 4 )); then
+    NUM_THREADS=${MAX_NUM_THREADS}
+else
+    echo "Error. Could not determine number of CPUs to use. Exiting..."
+    exit 4
+fi
 
-# Set memory usage
+# Set memory usage to 16GB if none given by user
 if [[ -z ${MEMORY_TO_USE} ]]; then
     echo "No memory limit set by user. Defaulting to 16GB"
     MEMORY_TO_USE="16"
