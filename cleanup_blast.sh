@@ -7,8 +7,8 @@ set -eo pipefail
 
 usage() { echo -e "The objective of this script is to clean up the results of stand-alone-blast (sab). \n\n" \
                   "This program takes in a FASTA (given as output by sab) of reads that mapped \n" \
-                  "to the previous reference and searches those again, this time against the \n" \
-                  "RefSeq Viral nucleotide database. The output of this script is a \n" \
+                  "to the previous reference and searches those again, this time against a \n" \
+                  "reference nucleotide blast database. The output of this script is a \n" \
                   "tab-delimited text file with the following fields: \n" \
                   "(1) name of the read (2) title of best hit in NCBI (3) e-value score of match \n\n" \
                   "Usage: $0 -i input.fasta [options] \n\n" \
@@ -16,8 +16,8 @@ usage() { echo -e "The objective of this script is to clean up the results of st
                   "Optional parameters: \n" \
                         "-e (evalue, e.g. 100, 1, or 1e-99; [default = 10]) \n" \
                         "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
-                        "-p (path to directory for RefSeq Viral database; " \
-                            "[default='~/Documents/Research/sra/blastdbs/viral_refseq_db'] ) \n" \
+                        "-p (path to directory for database; " \
+                            "[default='~/Documents/Research/sra/blastdbs/tvv_db'] ) \n" \
                         "-n (sets nucleotide program to blastn; [default= dc-megablast] ) \n" \
                         "-g (sets nucleotide program to megablast; [default= dc-megablast] ) \n\n" \
                       "Example of a complex run: \n" \
@@ -39,6 +39,10 @@ usage() { echo -e "The objective of this script is to clean up the results of st
 ###################################################################################################
 # TAKE IN THE USER-PROVIDED PARAMETERS
 ###################################################################################################
+# Store all parameters so I can save them to the log later
+ALL_PARAMETERS=$@
+
+# Read in the user-provided parameters
 while getopts "i:e:m:p:ng*:" arg; do
         case ${arg} in
                 i ) # Take in the input fasta
@@ -89,7 +93,7 @@ fi
 
 # If path to NCBI nt database was not given, give default path
 if [[ -z "${PATH_TO_NT_DB}" ]]; then
-    PATH_TO_NT_DB="${HOME}/Documents/Research/sra/blastdbs/viral_refseq_nt"
+    PATH_TO_NT_DB="${HOME}/Documents/Research/sra/blastdbs/tvv_db"
 fi
 ###################################################################################################
 
@@ -103,13 +107,11 @@ fi
 # Use `nproc` if installed (Linux or MacOS with gnu-core-utils); otherwise use `systctl`
 { \
     command -v nproc > /dev/null && \
-    MAX_NUM_THREADS=`nproc` && \
-    echo "Number of processors available (according to nproc): ${NUM_THREADS}"; \
+    MAX_NUM_THREADS=`nproc`
 } || \
 { \
     command -v sysctl > /dev/null && \
-    MAX_NUM_THREADS=`sysctl -n hw.ncpu` && \
-    echo "Number of processors available (according to sysctl): ${NUM_THREADS}";
+    MAX_NUM_THREADS=`sysctl -n hw.ncpu`
 }
 
 # If maximum available threads is less than or equal to 4, use all threads; else use 4
@@ -153,11 +155,12 @@ BLAST_NAME_SEQDUMP=${SEQDUMP_FILE%.*}
 # READ ALL INPUTS BACK TO USER
 ###################################################################################################
 # Create log file
-LOG_FILE=./blast_cleanup.${BLAST_NAME_SEQDUMP}.log
+LOG_FILE=./${BLAST_NAME_SEQDUMP}.cleanup_blast.log
 touch ${LOG_FILE}
 
 # Copy initial launch command into the log
-echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
+echo -e "\ncleanup_blast was launched with the following command: \n    '${BASH_SOURCE} ${ALL_PARAMETERS}' \n" \
+        "at: `date`" | tee -a ${LOG_FILE}
 
 # Read inputs back to the user and store them in the log
 echo -e "\n" \
@@ -166,7 +169,7 @@ echo -e "\n" \
         "e-value: ${E_VALUE} \n" \
         "Blast program: nucleotide-blast > ${BLAST_TASK} \n" \
         "Number of processors to use: ${NUM_THREADS} \n" \
-        "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+        "Memory limit: ${MEMORY_TO_USE}GB \n"| tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
@@ -186,13 +189,6 @@ blastn \
 # max_hsps only restricts to best level match PER VIRUS;
 # if one read matches to multiple viruses, there will be multiple viruses reported
 
-
-# Find reads that map to more than one virus (if one read has multiple results (bc large database,
-#   lots of alignments made, some spurious high evalue results will be included);
-#   alert the user in the log (below); in the results file, just include the best hit
-sort -k1,1 -k2g,2g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
-    ${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
-
 # Sort the reads, first by name then by evalue with lowest (strongest) on top; then, deduplicate
 sort -k1,1 -k2g,2g ${BLAST_NAME_SEQDUMP}.cleanup.results.txt  | sort -k1,1 -u > \
     ${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt
@@ -205,42 +201,49 @@ mv ./${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt ./${BLAST_NAME_SEQDUMP}.
 # OUTPUT LOGS
 ###################################################################################################
 # Make a token to indicate the job finished correctly
-echo -e "Finished nucleotide BLAST (${BLAST_TASK}), using ${BLAST_NAME_SEQDUMP} to query against RefSeq Viral " \
-     "nucleotide database \n" | tee -a ${LOG_FILE}
-
-# Indicate time of completion
-date | tee -a ${LOG_FILE}
+echo -e "Finished nucleotide BLAST (${BLAST_TASK}), using file '${BLAST_NAME_SEQDUMP}' to query against \n" \
+        "blast database '${PATH_TO_NT_DB}' at: \n`date` \n" | tee -a ${LOG_FILE}
 
 # Print number of sequences in the input file:
-echo -e "\nNumber of sequences in original input file (${BLAST_NAME_SEQDUMP}): "\
+echo -e "Number of sequences in original input file: "\
         "`grep -c "^>" ${SEQDUMP}`" | tee -a ${LOG_FILE}
 
 # Print number of hits
-echo -e "Number of hits in cleaned output hits list:" \
-        "`wc -l ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | cut -d " " -f 5` \n" |  tee -a ${LOG_FILE}
-
-# Print number of reads that mapped more than once, along with the read names
-echo -e "Total number of multiple-mapped reads: " \
-        "`cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt | uniq -d | wc -l`" | \
+echo -e "Number of hits in cleaned output hits list: " \
+        "`wc -l ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | awk '{$1=$1};1' | cut -d " " -f 1` \n" | \
         tee -a ${LOG_FILE}
 
-echo -e "\nReads that mapped to more than one virus: \n" >> tee -a ${LOG_FILE}
-cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt | uniq -d >> ${LOG_FILE}
-
-echo -e "\n Multiple-mapped reads could be a function of a high/generous e-value cutoff \n" \
-            "or could be a biologically relevant issue. Users are encouraged to look at those reads \n" \
-            "along with what they mapped to. Only the best hit is included in the results file. \n" \
-            "However, a list of the multi-mapped reads is stored in the log file: ${LOG_FILE}" | tee -a ${LOG_FILE}
-
-# Delete 'sorted' output file that was important for calculating duplicates
-#rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
 ###################################################################################################
 
 ###################################################################################################
 # FIND READS THAT MAPPED INITIALLY, BUT FELL OUT DURING THIS CLEANUP STEP
 ###################################################################################################
-INPUT_READS=`grep "^>" ${SEQDUMP} | sed 's/>//g' | sort`
-OUTPUT_READS=`cut -f 1 ${BLAST_NAME_SEQDUMP}.cleanup.results.txt | sort`
+# Create temp files with reads in input vs. reads in output
+INPUT_READS="input_reads.${BLAST_NAME_SEQDUMP}"
+OUTPUT_READS="output_reads.${BLAST_NAME_SEQDUMP}"
 
-seqtk subseq ${SEQDUMP} <(comm -3 <(echo ${INPUT_READS}) <(echo ${OUTPUT_READS})) > \
+grep "^>" ${SEQDUMP} | sed 's/>//g' | cut -d " " -f 1 | sort > ${INPUT_READS}
+cut -f 1 ${BLAST_NAME_SEQDUMP}.cleanup.results.txt | cut -d " " -f 1 | sort > ${OUTPUT_READS}
+
+# Find the reads in one but not the other; extract those reads from the input
+seqtk subseq ${SEQDUMP} <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
     ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta
+
+# Remove the temporary files
+rm ${INPUT_READS}
+rm ${OUTPUT_READS}
+
+# Print number of dropped out reads
+echo -e "Number of reads that dropped out of analysis during this cleaning step: " \
+        "`grep -c "^>" ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta | \
+          cut -d " " -f 1` \n" | \
+        tee -a ${LOG_FILE}
+
+# Save the names of those dropped out reads to the log
+echo -e "Names of any reads that dropped out during the analysis: \n" >> ${LOG_FILE}
+
+grep "^>" ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta | \
+    tr -d ">" >> \
+    ${LOG_FILE}
+###################################################################################################
+
