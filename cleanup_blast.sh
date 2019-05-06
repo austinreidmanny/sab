@@ -190,7 +190,7 @@ blastn \
 # Find reads that map to more than one virus (if one read has multiple results (bc large database,
 #   lots of alignments made, some spurious high evalue results will be included);
 #   alert the user in the log (below); in the results file, just include the best hit
-sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
+sort -k1,1 -k2g,2g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
     ${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
 
 # Sort the reads, first by name then by evalue with lowest (strongest) on top; then, deduplicate
@@ -216,7 +216,7 @@ echo -e "\nNumber of sequences in original input file (${BLAST_NAME_SEQDUMP}): "
         "`grep -c "^>" ${SEQDUMP}`" | tee -a ${LOG_FILE}
 
 # Print number of hits
-echo -e "Number of hits:" \
+echo -e "Number of hits in cleaned output hits list:" \
         "`wc -l ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | cut -d " " -f 5` \n" |  tee -a ${LOG_FILE}
 
 # Print number of reads that mapped more than once, along with the read names
@@ -233,14 +233,14 @@ echo -e "\n Multiple-mapped reads could be a function of a high/generous e-value
             "However, a list of the multi-mapped reads is stored in the log file: ${LOG_FILE}" | tee -a ${LOG_FILE}
 
 # Delete 'sorted' output file that was important for calculating duplicates
-rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
+#rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
 ###################################################################################################
 
 ###################################################################################################
 # FIND READS THAT MAPPED INITIALLY, BUT FELL OUT DURING THIS CLEANUP STEP
 ###################################################################################################
 INPUT_READS=`grep "^>" ${SEQDUMP} | sed 's/>//g' | sort`
-OUTPUT_READS=`cut -f 1 ${BLAST_NAME_SEQDUMP}.cleanup.results.txt} | sort`
+OUTPUT_READS=`cut -f 1 ${BLAST_NAME_SEQDUMP}.cleanup.results.txt | sort`
 
-seqtk subseq ${SEQDUMP} <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
+seqtk subseq ${SEQDUMP} <(comm -3 <(echo ${INPUT_READS}) <(echo ${OUTPUT_READS})) > \
     ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta
