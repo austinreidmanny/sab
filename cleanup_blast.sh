@@ -239,8 +239,7 @@ rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
 ###################################################################################################
 # FIND READS THAT MAPPED INITIALLY, BUT FELL OUT DURING THIS CLEANUP STEP
 ###################################################################################################
-#INPUT_READS=`grep "^>" ${SEQDUMP} | sed 's/>//g'"`
-#OUTPUT_READS=
+INPUT_READS=`grep "^>" ${SEQDUMP} | sed 's/>//g' | sort`
+OUTPUT_READS=`cut -f 1 ${BLAST_NAME_SEQDUMP}.cleanup.results.txt} | sort`
 
-#something like this
-#diff ${INPUT_READS} ${OUTPUT_READS}
+comm -3 ${INPUT_READS} ${OUTPUT_READS}
