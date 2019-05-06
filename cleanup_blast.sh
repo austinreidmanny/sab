@@ -30,7 +30,7 @@ usage() { echo -e "The objective of this script is to clean up the results of st
 # Note about the RefSeq Viral nucleotide database used
 ###################################################################################################
 # User will need to download this database from ftp://ftp.ncbi.nlm.nih.gov/refseq/release/viral/ ,
-# download the two files 'viral.1.1.genomic.fna.gz' and 'viral.2.1.genomic.genomic.fna.gz', 
+# download the two files 'viral.1.1.genomic.fna.gz' and 'viral.2.1.genomic.genomic.fna.gz',
 # unzip and concatenate them together into a single viral refseq fasta file, and use that as
 # input into the NCBI `makeblastdb` tool to make a blast nucleotide database.
 # For posterity, this tool was tested with these steps performed at 10:30AM on 2019-05-03
@@ -96,17 +96,31 @@ fi
 ###################################################################################################
 # Set up number of CPUs to use (use all available) and RAM (can be set by user, defaults to 16GB)
 ###################################################################################################
+# CPUs (aka threads aka processors aka cores):
+#   If 8 CPUs were used, BLAST fails & gives Segmentation Fault. Error stopped if <= 4 CPUs are used
+#   Strategy: Use up to 4 CPUs, or maximum available if less than 4 CPUs available
+
 # Use `nproc` if installed (Linux or MacOS with gnu-core-utils); otherwise use `systctl`
 { \
     command -v nproc > /dev/null && \
-    NUM_THREADS=`nproc` && \
-    echo "Number of processors available (according to nproc): ${NUM_THREADS}" > /dev/null; \
+    MAX_NUM_THREADS=`nproc` && \
+    echo "Number of processors available (according to nproc): ${NUM_THREADS}"; \
 } || \
 { \
     command -v sysctl > /dev/null && \
-    NUM_THREADS=`sysctl -n hw.ncpu` && \
-    echo "Number of processors available (according to sysctl): ${NUM_THREADS}" > /dev/null;
+    MAX_NUM_THREADS=`sysctl -n hw.ncpu` && \
+    echo "Number of processors available (according to sysctl): ${NUM_THREADS}";
 }
+
+# If maximum available threads is less than or equal to 4, use all threads; else use 4
+if (( ${MAX_NUM_THREADS} > 4 )); then
+    NUM_THREADS=4
+elif (( ${MAX_NUM_THREADS} <= 4 )); then
+    NUM_THREADS=${MAX_NUM_THREADS}
+else
+    echo "Error. Could not determine number of CPUs to use. Exiting..."
+    exit 4
+fi
 
 # Set memory usage
 if [[ -z ${MEMORY_TO_USE} ]]; then
@@ -167,15 +181,15 @@ blastn \
 -num_threads ${NUM_THREADS} \
 -outfmt "6 qseqid evalue stitle" \
 -max_target_seqs 10000000 \
--max_hsps 1 
+-max_hsps 1
 
-# max_hsps only restricts to best level match PER VIRUS; 
+# max_hsps only restricts to best level match PER VIRUS;
 # if one read matches to multiple viruses, there will be multiple viruses reported
 
 # Sort the output, first by name, then by evalue
 #   if one read has multiple results (bc large database, lots of alignments made, some spurious high
-#   evalue results will be included); alert the user in the log (below); in the results file, just 
-#   include the best hit 
+#   evalue results will be included); alert the user in the log (below); in the results file, just
+#   include the best hit
 sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
     ${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted
 
@@ -215,8 +229,17 @@ cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted | uniq -d >> ${LOG_F
 echo -e "\n Multiple-mapped reads could be a function of a high/generous e-value cutoff \n" \
             "or could be a biologically relevant issue. Users are encouraged to look at those reads \n" \
             "along with what they mapped to. Only the best hit is included in the results file. \n" \
-            "However, a list of the multi-mapped reads is stored in the log file: ${LOG_FILE}" | tee -a ${LOG_FILE} 
+            "However, a list of the multi-mapped reads is stored in the log file: ${LOG_FILE}" | tee -a ${LOG_FILE}
 
 # Delete 'sorted' output file that was important for calculating duplicates
 rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted
 ###################################################################################################
+
+###################################################################################################
+# FIND READS THAT MAPPED INITIALLY, BUT FELL OUT DURING THIS CLEANUP STEP
+###################################################################################################
+#INPUT_READS=`grep "^>" ${SEQDUMP} | sed 's/>//g'"`
+#OUTPUT_READS=
+
+#something like this
+#diff ${INPUT_READS} ${OUTPUT_READS}
