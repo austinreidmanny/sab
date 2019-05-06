@@ -186,17 +186,18 @@ blastn \
 # max_hsps only restricts to best level match PER VIRUS;
 # if one read matches to multiple viruses, there will be multiple viruses reported
 
-# Sort the output, first by name, then by evalue
-#   if one read has multiple results (bc large database, lots of alignments made, some spurious high
-#   evalue results will be included); alert the user in the log (below); in the results file, just
-#   include the best hit
-sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
-    ${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted
 
-sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | sort -u -k1,1 | sort -k2,2 -g > \
+# Find reads that map to more than one virus (if one read has multiple results (bc large database,
+#   lots of alignments made, some spurious high evalue results will be included);
+#   alert the user in the log (below); in the results file, just include the best hit
+sort -k1,2 -r -g ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt > \
+    ${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
+
+# Sort the reads, first by name then by evalue with lowest (strongest) on top; then, deduplicate
+sort -k1,1 -k2g,2g ${BLAST_NAME_SEQDUMP}.cleanup.results.txt  | sort -k1,1 -u > \
     ${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt
 
-# Overwrite the duplicates results files
+# Overwrite the original hits file with the deduplicated results files
 mv ./${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt
 ###################################################################################################
 
@@ -220,11 +221,11 @@ echo -e "Number of hits:" \
 
 # Print number of reads that mapped more than once, along with the read names
 echo -e "Total number of multiple-mapped reads: " \
-        "`cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted | uniq -d | wc -l`" | \
+        "`cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt | uniq -d | wc -l`" | \
         tee -a ${LOG_FILE}
 
 echo -e "\nReads that mapped to more than one virus: \n" >> tee -a ${LOG_FILE}
-cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted | uniq -d >> ${LOG_FILE}
+cut -f 1 ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt | uniq -d >> ${LOG_FILE}
 
 echo -e "\n Multiple-mapped reads could be a function of a high/generous e-value cutoff \n" \
             "or could be a biologically relevant issue. Users are encouraged to look at those reads \n" \
@@ -232,7 +233,7 @@ echo -e "\n Multiple-mapped reads could be a function of a high/generous e-value
             "However, a list of the multi-mapped reads is stored in the log file: ${LOG_FILE}" | tee -a ${LOG_FILE}
 
 # Delete 'sorted' output file that was important for calculating duplicates
-rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt.sorted
+rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
 ###################################################################################################
 
 ###################################################################################################
