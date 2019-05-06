@@ -242,4 +242,5 @@ rm ./${BLAST_NAME_SEQDUMP}.cleanup.results.multiple-mapped.txt
 INPUT_READS=`grep "^>" ${SEQDUMP} | sed 's/>//g' | sort`
 OUTPUT_READS=`cut -f 1 ${BLAST_NAME_SEQDUMP}.cleanup.results.txt} | sort`
 
-comm -3 ${INPUT_READS} ${OUTPUT_READS}
+seqtk subseq ${SEQDUMP} <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
+    ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta
