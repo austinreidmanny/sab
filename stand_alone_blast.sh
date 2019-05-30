@@ -49,7 +49,7 @@ while getopts "s:q:t:e:m:p:dn1:2:u:" arg; do
                   MEMORY_TO_USE=$(echo $MEMORY_ENTERED | sed 's/[^0-9]*//g')
                         ;;
                 p ) #set path to SRA FILES
-                  SRA_DIR=${OPTARG}
+                  USER_PROVIDED_SRA_DIR=${OPTARG}
                         ;;
                 d ) # switch to discontiguous_megablast
                   BLAST_TASK="dc-megablast"
@@ -244,7 +244,7 @@ echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 
 # Set directory to save SRA files
 if [[ -z ${SRA_DIR} ]]; then
-  SRA_DIR="${HOME}/Documents/Research/sra/"
+  SRA_DIR=${USER_PROVIDED_SRA_DIR}
 fi
 
 mkdir -p ${SRA_DIR}
