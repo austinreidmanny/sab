@@ -338,10 +338,14 @@ else
 
       if [[ ! -z ${FORWARD_READS} ]] ; then
         cat ${FORWARD_READS} ${REVERSE_READS} > ${CONCATENATED_FASTQ}
+
+      # If unpaired reads, call that fasta as the concat fastq
       elif [[ ! -z ${UNPAIRED_READS} ]] ; then
           CONCATENATED_FASTQ=${UNPAIRED_READS}
+
+      # If fasta input, skip the fastq stage, but copy fasta file to the blast directory for later, to call reads from
       elif [[ ! -z ${FASTA_INPUT} ]] ; then
-          CONCATENATED_FASTA=${FASTA_INPUT}
+          cp ${FASTA_INPUT} ${CONCATENATED_FASTA}
       fi
 
   else
@@ -399,7 +403,7 @@ else
      # Transform that FASTQ into FASTA so it's readable by BLAST
      seqtk seq -A ${CONCATENATED_FASTQ} > ${CONCATENATED_FASTA}
   fi
-
+  
   # Create the blast databse
   makeblastdb \
   -dbtype nucl \
@@ -409,7 +413,11 @@ else
   -logfile ${BLAST_DB_DIR}/${SAMPLES}_makeblastdb.log
 
   # Delete temporary concatenated fastq object (unless it's just the original unpaired reads file)
-  if [[ -z "${UNPAIRED_READS}" ]] ; then rm ${CONCATENATED_FASTQ}; fi
+  if [[ -z "${UNPAIRED_READS}" ]] ; then 
+      if [[ -f ${CONCATENATED_FASTQ} ]]; then
+          rm ${CONCATENATED_FASTQ}
+      fi
+  fi
 
   # Put finishing time of blastdb building in log file
   echo -e "Completed buiding BLAST database at: `date` \n" \
