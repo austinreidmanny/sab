@@ -239,7 +239,8 @@ fi
 ###################################################################################################
 
 # Create a directory to run & store the BLAST files
-mkdir -p ${SAMPLES}
+OUTPUT_DIRECTORY="./stand_alone_blast_${SAMPLES}"
+mkdir -p ${OUTPUT_DIRECTORY}
 
 # Create names for BLAST output file:
 ## truncates file path, leaving just the filename itself
@@ -249,7 +250,7 @@ VIRUS_QUERY_FILE=${VIRUS_QUERY##*/}
 BLAST_NAME_VIRUS_QUERY=${VIRUS_QUERY_FILE%.*}
 
 # Create log file
-readonly LOG_FILE="${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.log"
+readonly LOG_FILE="${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.log"
 touch ${LOG_FILE}
 
 # Copy initial launch command into the log
@@ -429,7 +430,7 @@ ${BLAST_TYPE} \
 -task ${BLAST_TASK} \
 -db ${BLAST_DB_DIR}/${BLAST_DB_NAME} \
 -query ${VIRUS_QUERY} \
--out ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt \
+-out ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt \
 -outfmt "6 qseqid sseqid evalue" \
 -num_threads ${NUM_THREADS} \
 -evalue ${E_VALUE} \
@@ -444,12 +445,12 @@ date | tee -a ${LOG_FILE}
 # Create FASTA sequence file of hits
 ###################################################################################################
 seqtk subseq  ${CONCATENATED_FASTA} \
-  <(cut -f 2 ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt | sort -u) > \
-  ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta
+    <(cut -f 2 ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt | sort -u) > \
+    ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta
 
 # Print number of hits and save to log file
 echo -e "\nNumber of hits, saved in fasta file:" | tee -a ${LOG_FILE}
-grep -c "^>" ${SAMPLES}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta | tee -a ${LOG_FILE}
+grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta | tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
