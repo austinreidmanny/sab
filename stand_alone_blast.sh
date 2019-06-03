@@ -28,7 +28,7 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
               "Exiting program. Please retry with corrected parameters..." >&2; exit 1; }
 
 # Make sure the pipeline is invoked correctly, with project and sample names
-while getopts "s:q:t:e:m:p:dn1:2:u:" arg; do
+while getopts "s:q:t:e:m:p:dn1:2:u:f:" arg; do
         case ${arg} in
                 s ) # Take in the sample name(s)
                   set -f
@@ -69,6 +69,10 @@ while getopts "s:q:t:e:m:p:dn1:2:u:" arg; do
                   UNPAIRED_READS=${OPTARG}
                   LOCAL_FILES="TRUE"
                         ;;
+                f ) # if user wants to provide a fasta file for input (ie de novo assembled contigs or scaffolds), give path to fasta
+                  FASTA_INPUT=${OPTARG}
+                  LOCAL_FILES="TRUE"
+                        ;;
                 * ) # Display help
                   usage
                         ;;
@@ -95,12 +99,14 @@ if [[ -z "${ALL_SAMPLES}" ]] && [[ -z "${LOCAL_FILES}" ]] ; then
   usage
 fi
 
-# If local files are provided, check that only forward+reverse reads OR unpaired reads are given
+# If local files are provided, check that only forward+reverse reads OR unpaired reads OR fasta input are given
 if [[ ! -z "${LOCAL_FILES}" ]]; then
      if [[ ! -z "${FORWARD_READS}" ]] && [[ ! -z "${REVERSE_READS}" ]]; then
          if [[ ! -z "${UNPAIRED_READS}" ]]; then
-             echo "If using local files, must provide only forward+reverse reads OR single file with unpaired reads";
-             usage
+             if [[ ! -z "${FASTA_INPUT}" ]]; then
+                echo "If using local files, must provide only forward+reverse reads OR single file with unpaired reads OR fasta input";
+                usage
+            fi
          fi
      fi
 fi
@@ -131,7 +137,14 @@ else
         UNPAIRED_READS_NO_PATH_NO_EXT=${UNPAIRED_READS_FILE_WITH_NO_PATH%.*}
 
         SAMPLES=${UNPAIRED_READS_NO_PATH_NO_EXT}
-        ALL_SAMPLES=$SAMPLES}
+        ALL_SAMPLES=${SAMPLES}
+
+    elif [[ ! -z "${FASTA_INPUT}" ]] ; then
+        FASTA_INPUT_WITH_NO_PATH=${FASTA_INPUT##*/}
+        FASTA_INPUT_NO_PATH_NO_EXT=${FASTA_INPUT_WITH_NO_PATH%.*}
+
+        SAMPLES=${FASTA_INPUT_NO_PATH_NO_EXT}
+        ALL_SAMPLES=${SAMPLES}
     fi
 fi
 
@@ -264,7 +277,7 @@ if [[ -z "${LOCAL_FILES}" ]]; then
           "Number of processors to use: ${NUM_THREADS} \n" \
           "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
 else
-    if [[ -z ${UNPAIRED_READS} ]]; then
+    if [[ ! -z ${FORWARD_READS} ]]; then
         echo -e "\n" \
           "User-provided files for sample: ${FORWARD_READS_NO_PATH_NO_EXT} ${REVERSE_READS_NO_PATH_NO_EXT} \n" \
           "Virus query file provided: ${VIRUS_QUERY} \n" \
@@ -273,9 +286,19 @@ else
           "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
           "Number of processors to use: ${NUM_THREADS} \n" \
           "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
-    else
+
+    elif [[ ! -z ${UNPAIRED_READS} ]]; then
         echo -e "\n" \
           "User-provided files for sample: ${UNPAIRED_READS} \n" \
+          "Virus query file provided: ${VIRUS_QUERY} \n" \
+          "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
+          "e-value: ${E_VALUE} \n" \
+          "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
+          "Number of processors to use: ${NUM_THREADS} \n" \
+          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+    elif [[ ! -z ${FASTA_INPUT} ]]; then
+        echo -e "\n" \
+          "User-provided files for sample: ${FASTA_INPUT} \n" \
           "Virus query file provided: ${VIRUS_QUERY} \n" \
           "Molecule type (nucl or prot) of input query: ${QUERY_TYPE} \n" \
           "e-value: ${E_VALUE} \n" \
@@ -312,10 +335,12 @@ else
   # If local provided files, just concatenate them together (if paired-end) or call the unpaired as the concat fastq
   if [[ ! -z ${LOCAL_FILES} ]]; then
 
-      if [[ -z ${UNPAIRED_READS} ]] ; then
+      if [[ ! -z ${FORWARD_READS} ]] ; then
         cat ${FORWARD_READS} ${REVERSE_READS} > ${CONCATENATED_FASTQ}
-      else
-          ${CONCATENATED_FASTQ}=${UNPAIRED_READS}
+      elif [[ ! -z ${UNPAIRED_READS} ]] ; then
+          CONCATENATED_FASTQ=${UNPAIRED_READS}
+      elif [[ ! -z ${FASTA_INPUT} ]] ; then
+          CONCATENATED_FASTA=${FASTA_INPUT}
       fi
 
   else
@@ -366,9 +391,13 @@ else
           cat ${SRA_DIR}/${SRA_FASTQ}*fastq >> ${CONCATENATED_FASTQ};
         done
   fi
-
-  # Transform that FASTQ into FASTA so it's readable by BLAST
-  seqtk seq -A ${CONCATENATED_FASTQ} > ${CONCATENATED_FASTA}
+  
+  # If using fasta input, then no need to make a concatenated fasta
+  if [[ -z ${FASTA_INPUT} ]]; then
+    
+     # Transform that FASTQ into FASTA so it's readable by BLAST
+     seqtk seq -A ${CONCATENATED_FASTQ} > ${CONCATENATED_FASTA}
+  fi
 
   # Create the blast databse
   makeblastdb \
