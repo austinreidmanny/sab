@@ -264,7 +264,7 @@ fi
 mkdir -p ${SRA_DIR}
 
 # Make directory to save resulting BLASTDB
-BLAST_DB_DIR=${SRA_DIR}/blastdbs
+BLAST_DB_DIR="${SRA_DIR}/blastdbs"
 mkdir -p ${BLAST_DB_DIR}
 
 # Read inputs back to the user and store them in the log
