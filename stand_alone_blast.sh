@@ -14,10 +14,12 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
 	      "Proper usage (for using transcriptomes from NCBI SRA): \n" \
                 "$0 -s SRR10001,SRR10002,SRR... -q VIRUS_QUERY -t nucl|prot \n\n" \
 	      "Proper usage (for using local RNA-seq library with paired-end reads): \n" \
-	        "$0 -1 reads_R1.fq -2 reads_R2.fq -q VIRUS_QUERY -t nucl|prot \n\n" \
+	            "$0 -1 reads_R1.fq -2 reads_R2.fq -q VIRUS_QUERY -t nucl|prot \n\n" \
 	      "Proper usage (for using local RNA-seq library with unpaired or interleaved reads): \n" \
                 "$0 -u reads.fq -q VIRUS_QUERY -t nucl|prot \n\n" \
-	      "Optional parameters: \n" \
+          "Proper usage (for using  a fasta file for input; e.g.,  de novo assembled contigs or scaffolds): \n" \
+                "$0 -f de_novo_assemblies.fasta -q VIRUS_QUERY -t nucl|prot \n\n" \
+          "Optional parameters: \n" \
                 "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
                 "-p (path to directory for saving SRA files; [default='~/Documents/Research/sra/'] ) \n" \
