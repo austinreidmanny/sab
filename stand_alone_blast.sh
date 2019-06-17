@@ -459,7 +459,8 @@ ${BLAST_TYPE} \
 -outfmt "6 qseqid sseqid evalue" \
 -num_threads ${NUM_THREADS} \
 -evalue ${E_VALUE} \
--max_target_seqs 100000000
+-max_target_seqs 100000000 \
+-max_hsps 1
 
 # Print time completed and write to log file as well
 echo -e "Finished running ${BLAST_TYPE} at:" | tee -a ${LOG_FILE}
