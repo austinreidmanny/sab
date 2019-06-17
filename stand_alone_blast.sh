@@ -22,7 +22,7 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
           "Optional parameters: \n" \
                 "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
-                "-p (path to directory for saving SRA files; [default='~/Documents/Research/sra/'] ) \n" \
+                "-p (path to directory for saving SRA files; [default='/tmp/'] ) \n" \
                 "-d (sets nucloetide program to discontiguous-megablast; [default=megablast] ) \n" \
                 "-n (sets nucleotide program to blastn; [default=megablast] ) \n\n" \
               "Example of a complex run: \n" \
@@ -259,8 +259,23 @@ touch ${LOG_FILE}
 echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 
 # Set directory to save SRA files
+
+# check if custom SRA_DIR variable is set, then ignore this block (Nibert lab computers have this)
 if [[ -z ${SRA_DIR} ]]; then
-  SRA_DIR=${USER_PROVIDED_SRA_DIR}
+
+  # If user provided an SRA_DIR on the command line, then set use that
+  if [[ ! -z ${USER_PROVIDED_SRA_DIR} ]]; then
+    SRA_DIR=${USER_PROVIDED_SRA_DIR}
+
+  # If user did not specify SRA directory, then save to temp dir
+  elif [[ -z ${USER_PROVIDED_SRA_DIR} ]]; then
+    SRA_DIR="/tmp/"
+
+  # Any other case would be an error
+  else
+    echo "Error trying to set up SRA directory. Exiting" && exit 11
+
+  fi
 fi
 
 mkdir -p ${SRA_DIR}
