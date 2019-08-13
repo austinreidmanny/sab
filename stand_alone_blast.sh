@@ -241,7 +241,7 @@ fi
 ###################################################################################################
 
 # Create a directory to run & store the BLAST files
-OUTPUT_DIRECTORY="./stand_alone_blast_${SAMPLES}"
+OUTPUT_DIRECTORY="./results/${SAMPLES}"
 mkdir -p ${OUTPUT_DIRECTORY}
 
 # Create names for BLAST output file:
