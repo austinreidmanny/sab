@@ -22,6 +22,7 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
           "Optional parameters: \n" \
                 "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
+                "-o (output directory for saving results; [default="./results"]) \n" \
                 "-p (path to directory for saving SRA files; [default='/tmp/'] ) \n" \
                 "-d (sets nucloetide program to discontiguous-megablast; [default=megablast] ) \n" \
                 "-n (sets nucleotide program to blastn; [default=megablast] ) \n\n" \
@@ -30,7 +31,7 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
               "Exiting program. Please retry with corrected parameters..." >&2; exit 1; }
 
 # Make sure the pipeline is invoked correctly, with project and sample names
-while getopts "s:q:t:e:m:p:dn1:2:u:f:" arg; do
+while getopts "s:q:t:e:m:o:p:dn1:2:u:f:" arg; do
         case ${arg} in
                 s ) # Take in the sample name(s)
                   set -f
@@ -49,6 +50,9 @@ while getopts "s:q:t:e:m:p:dn1:2:u:f:" arg; do
                 m ) # set max memory to use (in GB; if any letters are entered, discard those)
                   MEMORY_ENTERED=${OPTARG}
                   MEMORY_TO_USE=$(echo $MEMORY_ENTERED | sed 's/[^0-9]*//g')
+                        ;;
+                o ) # set the output directory
+                  OUTPUT_DIRECTORY=${OPTARG}
                         ;;
                 p ) #set path to SRA FILES
                   USER_PROVIDED_SRA_DIR=${OPTARG}
@@ -240,9 +244,24 @@ fi
 # CREATE DIRECTORIES AND PREPARE NAMES FOR BLAST
 ###################################################################################################
 
-# Create a directory to run & store the BLAST files
-OUTPUT_DIRECTORY="./results/${SAMPLES}"
-mkdir -p ${OUTPUT_DIRECTORY}
+# Create an output directory to run & store the BLAST files
+## If user didn't provide one, just use a subdirectory in working directory: "./results"
+if [[ -z ${OUTPUT_DIRECTORY} ]]; then
+    OUTPUT_DIRECTORY="./results"
+    mkdir -p ${OUTPUT_DIRECTORY}
+
+else 
+    # If user provided a desired output directory: check to make sure output directory doesn't exist; 
+    # then create output directory; if error, just default to a results subdirectory within current dir
+    if [[ ! -d ${OUTPUT_DIRECTORY} ]]; then
+        mkdir -p ${OUTPUT_DIRECTORY} || \
+        {
+            echo "Cannot create user-provided output directory. Defaulting to ./results/."
+            OUTPUT_DIRECTORY="./results/"
+            mkdir ${OUTPUT_DIRECTORY}    
+        }
+    fi
+fi
 
 # Create names for BLAST output file:
 ## truncates file path, leaving just the filename itself
