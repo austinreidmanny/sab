@@ -185,12 +185,12 @@ BLAST_NAME_SEQDUMP=$(basename ${SEQDUMP_FILE} ".stand_alone_blast.fasta")
 ###################################################################################################
 # Create log file
 LOG_FILE=${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.log
-touch ${LOG_FILE} || 
+touch ${LOG_FILE} ||
     {
     echo -e "ERROR: Cannot create log file. \n" \
             "Output directory may not be accessible for writing files. \n" \
             "Exiting... \n\n"
-    exit 3 
+    exit 3
     }
 
 # Copy initial launch command into the log
@@ -215,7 +215,7 @@ blastn \
 -task ${BLAST_TASK} \
 -db ${PATH_TO_NT_DB} \
 -query ${SEQDUMP} \
--out ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt \
+-out ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt \
 -evalue ${E_VALUE} \
 -num_threads ${NUM_THREADS} \
 -outfmt "6 qseqid evalue stitle" \
@@ -226,13 +226,13 @@ blastn \
 # if one read matches to multiple viruses, there will be multiple viruses reported
 
 # Sort the reads, first by name then by evalue with lowest (strongest) on top; then, deduplicate
-sort -k1,1 -k2g,2g ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt | 
+sort -k1,1 -k2g,2g ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
     sort -k1,1 -u > \
-    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.top-hits.txt
 
 # Overwrite the original hits file with the deduplicated results files
-mv ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt \
-   ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt
+mv ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.top-hits.txt \
+   ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt
 ###################################################################################################
 
 ###################################################################################################
@@ -248,26 +248,36 @@ echo -e "Number of sequences in original input file: "\
 
 # Print number of hits
 echo -e "Number of hits in cleaned output hits list: " \
-        "$(wc -l ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt | 
-           awk '{$1=$1};1' | 
+        "$(wc -l ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
+           awk '{$1=$1};1' |
            cut -d " " -f 1) \
-           \n" | 
+           \n" |
         tee -a ${LOG_FILE}
 
 ###################################################################################################
 
 ###################################################################################################
-# Create a summary of hits, with names of the hits & the number of reads that mapped to each 
+# Create a summary of hits, with names of the hits & the number of reads that mapped to each
 ###################################################################################################
-echo -e "Counts\tNames" > ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.summary.txt
+echo -e "Counts\tNames" | tee ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.summary.txt
 
 # The sed step removes all leading spaces from the counts column
-cut -f 3 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt |
+cut -f 3 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
     sort |
     uniq -c |
     sed -e 's/^[ ]*//g' |
-    tr " " "\t" >> \
-    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.summary.txt
+    tr " " "\t" |
+    tee -a ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.summary.txt
+###################################################################################################
+
+###################################################################################################
+# Create a fasta file of all cleaned hits
+###################################################################################################
+seqtk \
+    subseq \
+    ${SEQDUMP} \
+    <(cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast_blast.results.txt) > \
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.fasta
 ###################################################################################################
 
 ###################################################################################################
@@ -277,14 +287,14 @@ cut -f 3 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt |
 INPUT_READS="${OUTPUT_DIRECTORY}/input_reads.${BLAST_NAME_SEQDUMP}.temp"
 OUTPUT_READS="${OUTPUT_DIRECTORY}/output_reads.${BLAST_NAME_SEQDUMP}.temp"
 
-grep "^>" ${SEQDUMP} | 
-    sed 's/>//g' | 
-    cut -d " " -f 1 | 
+grep "^>" ${SEQDUMP} |
+    sed 's/>//g' |
+    cut -d " " -f 1 |
     sort > \
     ${INPUT_READS}
 
-cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt | 
-    cut -d " " -f 1 | 
+cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
+    cut -d " " -f 1 |
     sort > \
     ${OUTPUT_READS}
 
@@ -293,23 +303,23 @@ seqtk \
     subseq \
     ${SEQDUMP} \
     <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
-    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta
-
-# Remove the temporary files
-rm ${INPUT_READS}
-rm ${OUTPUT_READS}
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta
 
 # Print number of dropped out reads
 echo -e "Number of reads that dropped out of analysis during this cleaning step: " \
-        "`grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta | \
-          cut -d " " -f 1` \n" | \
-        tee -a ${LOG_FILE}
+        "`grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta | \
+          cut -d " " -f 1` \n" >> \
+        ${LOG_FILE}
 
 # Save the names of those dropped out reads to the log
 echo -e "Names of any reads that dropped out during the analysis: \n" >> ${LOG_FILE}
 
-grep "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta |
+grep "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta |
     tr -d ">" >> \
     ${LOG_FILE}
-###################################################################################################
 
+# Remove the temporary files
+rm ${INPUT_READS}
+rm ${OUTPUT_READS}
+rm ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta
+###################################################################################################
