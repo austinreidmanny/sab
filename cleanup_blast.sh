@@ -111,13 +111,11 @@ fi
 #   Strategy: Use up to 4 CPUs, or maximum available if less than 4 CPUs available
 
 # Use `nproc` if installed (Linux or MacOS with gnu-core-utils); otherwise use `systctl`
-{ \
-    command -v nproc > /dev/null &&
-    MAX_NUM_THREADS=`nproc`
-} || \
-{ \
-    command -v sysctl > /dev/null &&
-    MAX_NUM_THREADS=`sysctl -n hw.ncpu`
+{   command -v nproc > /dev/null &&
+    MAX_NUM_THREADS=$(nproc)
+} ||
+{   command -v sysctl > /dev/null &&
+    MAX_NUM_THREADS=$(sysctl -n hw.ncpu)
 }
 
 # If maximum available threads is less than or equal to 4, use all threads; else use 4
@@ -186,7 +184,7 @@ BLAST_NAME_SEQDUMP=${SEQDUMP_FILE%.*}
 # READ ALL INPUTS BACK TO USER
 ###################################################################################################
 # Create log file
-LOG_FILE=./${BLAST_NAME_SEQDUMP}.cleanup_blast.log
+LOG_FILE=${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.log
 touch ${LOG_FILE}
 
 # Copy initial launch command into the log
@@ -200,7 +198,8 @@ echo -e "\n" \
         "e-value: ${E_VALUE} \n" \
         "Blast program: nucleotide-blast > ${BLAST_TASK} \n" \
         "Number of processors to use: ${NUM_THREADS} \n" \
-        "Memory limit: ${MEMORY_TO_USE}GB \n"| tee -a ${LOG_FILE}
+        "Memory limit: ${MEMORY_TO_USE}GB \n" \
+        "Output directory: ${OUTPUT_DIRECTORY} \n\n" | tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
@@ -210,7 +209,7 @@ blastn \
 -task ${BLAST_TASK} \
 -db ${PATH_TO_NT_DB} \
 -query ${SEQDUMP} \
--out ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt \
+-out ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt \
 -evalue ${E_VALUE} \
 -num_threads ${NUM_THREADS} \
 -outfmt "6 qseqid evalue stitle" \
@@ -221,11 +220,13 @@ blastn \
 # if one read matches to multiple viruses, there will be multiple viruses reported
 
 # Sort the reads, first by name then by evalue with lowest (strongest) on top; then, deduplicate
-sort -k1,1 -k2g,2g ${BLAST_NAME_SEQDUMP}.cleanup.results.txt  | sort -k1,1 -u > \
-    ${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt
+sort -k1,1 -k2g,2g ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt | 
+    sort -k1,1 -u > \
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt
 
 # Overwrite the original hits file with the deduplicated results files
-mv ./${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt
+mv ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt \
+   ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt
 ###################################################################################################
 
 ###################################################################################################
@@ -241,7 +242,10 @@ echo -e "Number of sequences in original input file: "\
 
 # Print number of hits
 echo -e "Number of hits in cleaned output hits list: " \
-        "`wc -l ./${BLAST_NAME_SEQDUMP}.cleanup.results.txt | awk '{$1=$1};1' | cut -d " " -f 1` \n" | \
+        "$(wc -l ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt | 
+           awk '{$1=$1};1' | 
+           cut -d " " -f 1) \
+           \n" | 
         tee -a ${LOG_FILE}
 
 ###################################################################################################
@@ -250,15 +254,26 @@ echo -e "Number of hits in cleaned output hits list: " \
 # FIND READS THAT MAPPED INITIALLY, BUT FELL OUT DURING THIS CLEANUP STEP
 ###################################################################################################
 # Create temp files with reads in input vs. reads in output
-INPUT_READS="input_reads.${BLAST_NAME_SEQDUMP}"
-OUTPUT_READS="output_reads.${BLAST_NAME_SEQDUMP}"
+INPUT_READS="${OUTPUT_DIRECTORY}/input_reads.${BLAST_NAME_SEQDUMP}.temp"
+OUTPUT_READS="${OUTPUT_DIRECTORY}/output_reads.${BLAST_NAME_SEQDUMP}.temp"
 
-grep "^>" ${SEQDUMP} | sed 's/>//g' | cut -d " " -f 1 | sort > ${INPUT_READS}
-cut -f 1 ${BLAST_NAME_SEQDUMP}.cleanup.results.txt | cut -d " " -f 1 | sort > ${OUTPUT_READS}
+grep "^>" ${SEQDUMP} | 
+    sed 's/>//g' | 
+    cut -d " " -f 1 | 
+    sort > \
+    ${INPUT_READS}
+
+cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt | 
+    cut -d " " -f 1 | 
+    sort > \
+    ${OUTPUT_READS}
 
 # Find the reads in one but not the other; extract those reads from the input
-seqtk subseq ${SEQDUMP} <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
-    ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta
+seqtk \
+    subseq \
+    ${SEQDUMP} \
+    <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta
 
 # Remove the temporary files
 rm ${INPUT_READS}
@@ -266,14 +281,14 @@ rm ${OUTPUT_READS}
 
 # Print number of dropped out reads
 echo -e "Number of reads that dropped out of analysis during this cleaning step: " \
-        "`grep -c "^>" ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta | \
+        "`grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta | \
           cut -d " " -f 1` \n" | \
         tee -a ${LOG_FILE}
 
 # Save the names of those dropped out reads to the log
 echo -e "Names of any reads that dropped out during the analysis: \n" >> ${LOG_FILE}
 
-grep "^>" ${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta | \
+grep "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.dropped-reads.fasta |
     tr -d ">" >> \
     ${LOG_FILE}
 ###################################################################################################
