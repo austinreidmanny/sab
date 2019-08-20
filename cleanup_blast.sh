@@ -240,11 +240,11 @@ mv ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.top-hits.txt \
 ###################################################################################################
 # Make a token to indicate the job finished correctly
 echo -e "Finished nucleotide BLAST (${BLAST_TASK}), using file '${BLAST_NAME_SEQDUMP}' to query against \n" \
-        "blast database '${PATH_TO_NT_DB}' at: \n`date` \n" | tee -a ${LOG_FILE}
+        "blast database '${PATH_TO_NT_DB}' at: \n $(date) \n" | tee -a ${LOG_FILE}
 
 # Print number of sequences in the input file:
 echo -e "Number of sequences in original input file: "\
-        "`grep -c "^>" ${SEQDUMP}`" | tee -a ${LOG_FILE}
+        "$(grep -c "^>" ${SEQDUMP})" | tee -a ${LOG_FILE}
 
 # Print number of hits
 echo -e "Number of hits in cleaned output hits list: " \

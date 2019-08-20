@@ -494,7 +494,7 @@ ${BLAST_TYPE} \
 -task ${BLAST_TASK} \
 -db ${BLAST_DB_DIR}/${BLAST_DB_NAME} \
 -query ${VIRUS_QUERY} \
--out ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt \
+-out ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.results.txt \
 -outfmt "6 qseqid sseqid evalue" \
 -num_threads ${NUM_THREADS} \
 -evalue ${E_VALUE} \
@@ -510,12 +510,12 @@ date | tee -a ${LOG_FILE}
 # Create FASTA sequence file of hits
 ###################################################################################################
 seqtk subseq  ${CONCATENATED_FASTA} \
-    <(cut -f 2 ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.results.txt | sort -u) > \
-    ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta
+    <(cut -f 2 ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.results.txt | sort -u) > \
+    ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.fasta
 
 # Print number of hits and save to log file
 echo -e "\nNumber of hits, saved in fasta file:" | tee -a ${LOG_FILE}
-grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.fasta | tee -a ${LOG_FILE}
+grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.fasta | tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
