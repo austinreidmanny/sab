@@ -185,11 +185,17 @@ BLAST_NAME_SEQDUMP=${SEQDUMP_FILE%.*}
 ###################################################################################################
 # Create log file
 LOG_FILE=${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.log
-touch ${LOG_FILE}
+touch ${LOG_FILE} || 
+    {
+    echo -e "ERROR: Cannot create log file. \n" \
+            "Output directory may not be accessible for writing files. \n" \
+            "Exiting... \n\n"
+    exit 3 
+    }
 
 # Copy initial launch command into the log
 echo -e "\ncleanup_blast was launched with the following command: \n    '${BASH_SOURCE} ${ALL_PARAMETERS}' \n" \
-        "at: `date`" | tee -a ${LOG_FILE}
+        "at: `date`" | tee ${LOG_FILE}
 
 # Read inputs back to the user and store them in the log
 echo -e "\n" \
