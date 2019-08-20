@@ -16,9 +16,12 @@ usage() { echo -e "The objective of this script is to clean up the results of st
                   "Optional parameters: \n" \
                         "-e (evalue, e.g. 100, 1, or 1e-99; [default = 10]) \n" \
                         "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
+                        "-o (output directory for saving results; [default="./cleanup_results"]) \n" \
                         "-p (path to directory for database; " \
                             "[default='~/Documents/Research/sra/blastdbs/tvv_db'] ) \n" \
-                        "-n (sets nucleotide program to blastn; [default= dc-megablast] ) \n" \
+                            "   [for TVV1-5 database (includes TVV5 genomes >=3000nt, in addition to all TVV1-4), use: \n" \
+                            "    '~/Documents/Research/sra/blastdbs/tvv1-5_db' ] \n" \
+                            "-n (sets nucleotide program to blastn; [default= dc-megablast] ) \n" \
                         "-g (sets nucleotide program to megablast; [default= dc-megablast] ) \n\n" \
                       "Example of a complex run: \n" \
                       "$0 -i input.fasta -e 1e-3 -m 26 -g \n\n" \
@@ -43,7 +46,7 @@ usage() { echo -e "The objective of this script is to clean up the results of st
 ALL_PARAMETERS=$@
 
 # Read in the user-provided parameters
-while getopts "i:e:m:p:ng*:" arg; do
+while getopts "i:e:m:o:p:ng*:" arg; do
         case ${arg} in
                 i ) # Take in the input fasta
                   SEQDUMP=${OPTARG}
@@ -54,6 +57,9 @@ while getopts "i:e:m:p:ng*:" arg; do
                 m ) # set max memory to use (in GB; if any letters are entered, discard those)
                   MEMORY_ENTERED=${OPTARG}
                   MEMORY_TO_USE=$(echo $MEMORY_ENTERED | sed 's/[^0-9]*//g')
+                        ;;
+                o ) # set the output directory
+                  OUTPUT_DIRECTORY=${OPTARG}
                         ;;
                 p ) #set path to NCBI nt database
                   PATH_TO_NT_DB=${OPTARG}
@@ -106,11 +112,11 @@ fi
 
 # Use `nproc` if installed (Linux or MacOS with gnu-core-utils); otherwise use `systctl`
 { \
-    command -v nproc > /dev/null && \
+    command -v nproc > /dev/null &&
     MAX_NUM_THREADS=`nproc`
 } || \
 { \
-    command -v sysctl > /dev/null && \
+    command -v sysctl > /dev/null &&
     MAX_NUM_THREADS=`sysctl -n hw.ncpu`
 }
 
@@ -132,9 +138,34 @@ fi
 ###################################################################################################
 
 ###################################################################################################
+# CREATE DIRECTORIES AND PREPARE NAMES FOR BLAST
+###################################################################################################
+
+# Create an output directory to run & store the BLAST files
+## If user didn't provide one, just use a subdirectory in working directory: "./cleanup_results"
+if [[ -z ${OUTPUT_DIRECTORY} ]]; then
+    OUTPUT_DIRECTORY="./cleanup_results"
+    mkdir -p ${OUTPUT_DIRECTORY}
+
+else
+    # If user provided a desired output directory: check to make sure output directory doesn't exist;
+    # then create output directory; if error, just default to a results subdirectory within current dir
+    if [[ ! -d ${OUTPUT_DIRECTORY} ]]; then
+        mkdir -p ${OUTPUT_DIRECTORY} ||
+        {
+            echo "Cannot create user-provided output directory. Defaulting to ./cleanup_results/."
+            OUTPUT_DIRECTORY="./cleanup_results/"
+            mkdir ${OUTPUT_DIRECTORY}
+        }
+    fi
+fi
+
+###################################################################################################
+
+###################################################################################################
 # ENSURE THAT ALL REQUIRED SOFTWARE IS INSTALLED
 ###################################################################################################
-command -v blastn > /dev/null || \
+command -v blastn > /dev/null ||
 { echo -e "This program requires 'blastn'. \n" \
         "Please install from NCBI website or NCBI github and retry. \n" \
         "Exiting..."; exit 2

@@ -12,26 +12,28 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
               "as either 'nucl' or 'prot' (do not include the quotes). \n\n" \
 	      "If using local RNA-seq libraries as input, please indicate that as seen below... \n\n" \
 	      "Proper usage (for using transcriptomes from NCBI SRA): \n" \
-                "$0 -s SRR10001,SRR10002,SRR... -q VIRUS_QUERY -t nucl|prot \n\n" \
+                "$0 -s SRR10001,SRR10002,SRR... -q query_sequence.fa -t nucl|prot \n\n" \
 	      "Proper usage (for using local RNA-seq library with paired-end reads): \n" \
-	            "$0 -1 reads_R1.fq -2 reads_R2.fq -q VIRUS_QUERY -t nucl|prot \n\n" \
+	            "$0 -1 reads_R1.fq -2 reads_R2.fq -q query_sequence.fa -t nucl|prot \n\n" \
 	      "Proper usage (for using local RNA-seq library with unpaired or interleaved reads): \n" \
                 "$0 -u reads.fq -q VIRUS_QUERY -t nucl|prot \n\n" \
           "Proper usage (for using  a fasta file for input; e.g.,  de novo assembled contigs or scaffolds): \n" \
-                "$0 -f de_novo_assemblies.fasta -q VIRUS_QUERY -t nucl|prot \n\n" \
+                "$0 -f de_novo_assemblies.fasta -q query_sequence.fa -t nucl|prot \n\n" \
           "Optional parameters: \n" \
                 "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
+                "-c (custom job name, for naming files [HIGHLY RECOMMENDED TO PROVIDE THIS]; \n" \
+                "    [default=none, guess from input filenames]) \n" \
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
                 "-o (output directory for saving results; [default="./results"]) \n" \
                 "-p (path to directory for saving SRA files; [default='/tmp/'] ) \n" \
                 "-d (sets nucloetide program to discontiguous-megablast; [default=megablast] ) \n" \
                 "-n (sets nucleotide program to blastn; [default=megablast] ) \n\n" \
               "Example of a complex run: \n" \
-              "$0 -s SRX193147,SRX193148,SRX193149 -q tvv2_nt.fasta -t nucl -e 1e-3 -m 30 -d \n\n" \
+              "$0 -1 sampleA1_reads_R1.fq -2 sampleA1_reads_R2.fq -q my_virus.fasta -t nucl -c sampleA1 -e 1e-3 -m 30 -d -o ./virus-blast-results \n\n" \
               "Exiting program. Please retry with corrected parameters..." >&2; exit 1; }
 
 # Make sure the pipeline is invoked correctly, with project and sample names
-while getopts "s:q:t:e:m:o:p:dn1:2:u:f:" arg; do
+while getopts "s:q:t:e:c:m:o:p:dn1:2:u:f:" arg; do
         case ${arg} in
                 s ) # Take in the sample name(s)
                   set -f
@@ -46,6 +48,9 @@ while getopts "s:q:t:e:m:o:p:dn1:2:u:f:" arg; do
                         ;;
                 e ) # set evalue
                   E_VALUE=${OPTARG}
+                        ;;
+                c ) # set custom name for naming files
+                  CUSTOM_NAME=${OPTARG}
                         ;;
                 m ) # set max memory to use (in GB; if any letters are entered, discard those)
                   MEMORY_ENTERED=${OPTARG}
@@ -152,6 +157,11 @@ else
         SAMPLES=${FASTA_INPUT_NO_PATH_NO_EXT}
         ALL_SAMPLES=${SAMPLES}
     fi
+fi
+
+# If user provides custom job name, use that for naming
+if [[ ! -z "${CUSTOM_NAME}" ]]; then
+    SAMPLES=${CUSTOM_NAME}
 fi
 
 # Reset global expansion
@@ -312,7 +322,8 @@ if [[ -z "${LOCAL_FILES}" ]]; then
           "e-value: ${E_VALUE} \n" \
           "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
           "Number of processors to use: ${NUM_THREADS} \n" \
-          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+          "Memory limit: ${MEMORY_TO_USE}GB \n" \
+          "Output directory: ${OUTPUT_DIRECTORY} \n\n" | tee -a ${LOG_FILE}
 else
     if [[ ! -z ${FORWARD_READS} ]]; then
         echo -e "\n" \
@@ -322,7 +333,8 @@ else
           "e-value: ${E_VALUE} \n" \
           "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
           "Number of processors to use: ${NUM_THREADS} \n" \
-          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+          "Memory limit: ${MEMORY_TO_USE}GB \n" \
+          "Output directory: ${OUTPUT_DIRECTORY} \n\n" | tee -a ${LOG_FILE}
 
     elif [[ ! -z ${UNPAIRED_READS} ]]; then
         echo -e "\n" \
@@ -332,7 +344,9 @@ else
           "e-value: ${E_VALUE} \n" \
           "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
           "Number of processors to use: ${NUM_THREADS} \n" \
-          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+          "Memory limit: ${MEMORY_TO_USE}GB \n" \
+          "Output directory: ${OUTPUT_DIRECTORY} \n\n" | tee -a ${LOG_FILE}
+    
     elif [[ ! -z ${FASTA_INPUT} ]]; then
         echo -e "\n" \
           "User-provided files for sample: ${FASTA_INPUT} \n" \
@@ -341,10 +355,16 @@ else
           "e-value: ${E_VALUE} \n" \
           "Blast program: ${BLAST_TYPE} > ${BLAST_TASK} \n" \
           "Number of processors to use: ${NUM_THREADS} \n" \
-          "Memory limit: ${MEMORY_TO_USE}GB \n\n"| tee -a ${LOG_FILE}
+          "Memory limit: ${MEMORY_TO_USE}GB \n" \
+          "Output directory: ${OUTPUT_DIRECTORY} \n\n" | tee -a ${LOG_FILE}
     fi
 fi
 
+# If user provided a custom job name, print that to the user and store in log, as well
+if [[ ! -z ${CUSTOM_NAME} ]]; then
+    echo -e "Custom run name: ${CUSTOM_NAME} \n\n" |
+    tee -a ${LOG_FILE}
+fi
 ###################################################################################################
 
 ###################################################################################################
