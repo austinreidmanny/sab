@@ -276,7 +276,7 @@ cut -f 3 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
 seqtk \
     subseq \
     ${SEQDUMP} \
-    <(cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast_blast.results.txt) > \
+    <(cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt) > \
     ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.fasta
 ###################################################################################################
 
