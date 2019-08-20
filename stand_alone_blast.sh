@@ -281,7 +281,7 @@ VIRUS_QUERY_FILE=${VIRUS_QUERY##*/}
 BLAST_NAME_VIRUS_QUERY=${VIRUS_QUERY_FILE%.*}
 
 # Create log file
-readonly LOG_FILE="${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.log"
+readonly LOG_FILE="${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.log"
 touch ${LOG_FILE}
 
 # Copy initial launch command into the log
