@@ -176,8 +176,8 @@ command -v blastn > /dev/null ||
 # Create names for BLAST output file: first, truncate file path, leaving just the filename itself
 SEQDUMP_FILE=${SEQDUMP##*/}
 
-# Next, eliminate file extension, giving a cleaner name for blast
-BLAST_NAME_SEQDUMP=${SEQDUMP_FILE%.*}
+# Next, eliminate ".stand_alone_blast" and file extension, giving a cleaner name for blast
+BLAST_NAME_SEQDUMP=$(basename ${SEQDUMP_FILE} ".stand_alone_blast.fasta")
 ###################################################################################################
 
 ###################################################################################################
@@ -254,6 +254,20 @@ echo -e "Number of hits in cleaned output hits list: " \
            \n" | 
         tee -a ${LOG_FILE}
 
+###################################################################################################
+
+###################################################################################################
+# Create a summary of hits, with names of the hits & the number of reads that mapped to each 
+###################################################################################################
+echo -e "Counts\tNames" > ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.summary.txt
+
+# The sed step removes all leading spaces from the counts column
+cut -f 3 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.results.txt |
+    sort |
+    uniq -c |
+    sed -e 's/^[ ]*//g' |
+    tr " " "\t" >> \
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup.summary.txt
 ###################################################################################################
 
 ###################################################################################################
