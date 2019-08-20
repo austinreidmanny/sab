@@ -26,14 +26,14 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
                 "-o (output directory for saving results; [default="./results"]) \n" \
                 "-p (path to directory for saving SRA files; [default='/tmp/'] ) \n" \
-                "-d (sets nucloetide program to discontiguous-megablast; [default=megablast] ) \n" \
-                "-n (sets nucleotide program to blastn; [default=megablast] ) \n\n" \
+                "-d (sets nucloetide program to discontiguous-megablast; [default=blastn] ) \n" \
+                "-g (sets nucleotide program to megablast; [default=blastn] ) \n\n" \
               "Example of a complex run: \n" \
               "$0 -1 sampleA1_reads_R1.fq -2 sampleA1_reads_R2.fq -q my_virus.fasta -t nucl -c sampleA1 -e 1e-3 -m 30 -d -o ./virus-blast-results \n\n" \
               "Exiting program. Please retry with corrected parameters..." >&2; exit 1; }
 
 # Make sure the pipeline is invoked correctly, with project and sample names
-while getopts "s:q:t:e:c:m:o:p:dn1:2:u:f:" arg; do
+while getopts "s:q:t:e:c:m:o:p:dg1:2:u:f:" arg; do
         case ${arg} in
                 s ) # Take in the sample name(s)
                   set -f
@@ -65,8 +65,8 @@ while getopts "s:q:t:e:c:m:o:p:dn1:2:u:f:" arg; do
                 d ) # switch to discontiguous_megablast
                   BLAST_TASK="dc-megablast"
                         ;;
-                n ) # switch to blastn
-                  BLAST_TASK="blastn"
+                g ) # switch to megablast
+                  BLAST_TASK="megablast"
                         ;;
                 1 ) # if providing local transcriptome with paired-end reads, give path to forward reads fastq
                   FORWARD_READS=${OPTARG}
@@ -172,9 +172,9 @@ set +f
 if [[ ${QUERY_TYPE} == 'nucl' ]]; then
     BLAST_TYPE='blastn'
 
-    # If -d (dc_megablst) or -n (blastn) flags were no given by user, default to megablast
+    # If -d (dc_megablast) or -g (megablast) flags were not given by user, default to megablast
     if [[ -z "${BLAST_TASK}" ]]; then
-        BLAST_TASK='megablast'
+        BLAST_TASK='blastn'
     fi
 
 ## Protein query
@@ -517,6 +517,23 @@ seqtk subseq  ${CONCATENATED_FASTA} \
 echo -e "\nNumber of hits, saved in fasta file:" | tee -a ${LOG_FILE}
 grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.fasta | tee -a ${LOG_FILE}
 ###################################################################################################
+
+###################################################################################################
+# Create a summary of hits, with names of the hits & the number of reads that mapped to each 
+###################################################################################################
+echo -e "Counts\tName" > ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.summary.txt
+
+# The sed step removes all leading spaces from the counts column
+cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.results.txt |
+    sort |
+    uniq -c |
+    sed -e 's/^[ ]*//g' |
+    tr " " "\t" >> \
+    ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.summary.txt
+
+###################################################################################################
+
+
 
 ###################################################################################################
 # STAND-ALONE-BLAST (sab) FINISHED SUCCESSFULLY
