@@ -218,7 +218,7 @@ blastn \
 -out ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt \
 -evalue ${E_VALUE} \
 -num_threads ${NUM_THREADS} \
--outfmt "6 qseqid evalue stitle" \
+-outfmt "6 qseqid evalue stitle qlen" \
 -max_target_seqs 10000000 \
 -max_hsps 1
 
@@ -228,11 +228,21 @@ blastn \
 # Sort the reads, first by name then by evalue with lowest (strongest) on top; then, deduplicate
 sort -k1,1 -k2g,2g ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
     sort -k1,1 -u > \
-    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.top-hits.txt
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.sorted.temp
 
-# Overwrite the original hits file with the deduplicated results files
-mv ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.top-hits.txt \
-   ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt
+# Create a final results file, with a header
+echo -e "Query_name\t" \
+        "e-value\t" \
+        "Hit_name\t" \
+        "Query_length" > \
+        ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt
+
+# Sort the hits so that the longest contigs will be on top
+sort \
+    -k4,4nr \
+    -t $'\t' \
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.sorted.temp >> \
+    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt
 ###################################################################################################
 
 ###################################################################################################
@@ -248,7 +258,8 @@ echo -e "Number of sequences in original input file: "\
 
 # Print number of hits
 echo -e "Number of hits in cleaned output hits list: " \
-        "$(wc -l ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
+        "$(tail -n +2 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
+           wc -l |
            awk '{$1=$1};1' |
            cut -d " " -f 1) \
            \n" |
@@ -262,7 +273,8 @@ echo -e "Number of hits in cleaned output hits list: " \
 echo -e "Counts\tNames" | tee ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.summary.txt
 
 # The sed step removes all leading spaces from the counts column
-cut -f 3 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
+tail -n +2 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
+    cut -f 3 |
     sort |
     uniq -c |
     sed -e 's/^[ ]*//g' |
@@ -276,50 +288,75 @@ cut -f 3 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
 seqtk \
     subseq \
     ${SEQDUMP} \
-    <(cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt) > \
+    <(tail -n +2 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt | cut -f 1) > \
     ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.fasta
+###################################################################################################
+
+###################################################################################################
+# Delete temporary files
+###################################################################################################
+#if using macOS, which has a pretty underpowered `find` utility, cannot use -name flag; so just use `rm`
+find ${OUTPUT_DIRECTORY} -name "*temp" -print0 | xargs -0 rm || 
+    rm "${OUTPUT_DIRECTORY}/*temp"
+###################################################################################################
+
+###################################################################################################
+# Indicate to user that this analysis is complete
+###################################################################################################
+echo -e "\n$0 has finished analysis at: $(date)" | tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
 # FIND READS THAT MAPPED INITIALLY, BUT FELL OUT DURING THIS CLEANUP STEP
 ###################################################################################################
+
+#=================================================================================================#
+#     I don't believe this analysis is critical at this time; 
+#     just adds more files that could confuse the user;
+#     disabled for now, may restore in the future
+#=================================================================================================#
+
+
 # Create temp files with reads in input vs. reads in output
-INPUT_READS="${OUTPUT_DIRECTORY}/input_reads.${BLAST_NAME_SEQDUMP}.temp"
-OUTPUT_READS="${OUTPUT_DIRECTORY}/output_reads.${BLAST_NAME_SEQDUMP}.temp"
+#INPUT_READS="${OUTPUT_DIRECTORY}/input_reads.${BLAST_NAME_SEQDUMP}.temp"
+#OUTPUT_READS="${OUTPUT_DIRECTORY}/output_reads.${BLAST_NAME_SEQDUMP}.temp"
 
-grep "^>" ${SEQDUMP} |
-    sed 's/>//g' |
-    cut -d " " -f 1 |
-    sort > \
-    ${INPUT_READS}
+#grep "^>" ${SEQDUMP} |
+#    sed 's/>//g' |
+#    cut -d " " -f 1 |
+#    sort > \
+#    ${INPUT_READS}
 
-cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
-    cut -d " " -f 1 |
-    sort > \
-    ${OUTPUT_READS}
+#cut -f 1 ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.results.txt |
+#    cut -d " " -f 1 |
+#    sort > \
+#    ${OUTPUT_READS}
 
 # Find the reads in one but not the other; extract those reads from the input
-seqtk \
-    subseq \
-    ${SEQDUMP} \
-    <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
-    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta
+#seqtk \
+#    subseq \
+#    ${SEQDUMP} \
+#    <(comm -3 ${INPUT_READS} ${OUTPUT_READS}) > \
+#    ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta
 
 # Print number of dropped out reads
-echo -e "Number of reads that dropped out of analysis during this cleaning step: " \
-        "`grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta | \
-          cut -d " " -f 1` \n" >> \
-        ${LOG_FILE}
+#echo -e "Number of reads that dropped out of analysis during this cleaning step: " \
+#        "`grep -c "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta | \
+#          cut -d " " -f 1` \n" >> \
+#        ${LOG_FILE}
 
 # Save the names of those dropped out reads to the log
-echo -e "Names of any reads that dropped out during the analysis: \n" >> ${LOG_FILE}
+#echo -e "Names of any reads that dropped out during the analysis: \n" >> ${LOG_FILE}
 
-grep "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta |
-    tr -d ">" >> \
-    ${LOG_FILE}
+#grep "^>" ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta |
+#    tr -d ">" >> \
+#    ${LOG_FILE}
 
 # Remove the temporary files
-rm ${INPUT_READS}
-rm ${OUTPUT_READS}
-rm ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta
+#rm ${INPUT_READS}
+#rm ${OUTPUT_READS}
+#rm ${OUTPUT_DIRECTORY}/${BLAST_NAME_SEQDUMP}.cleanup_blast.dropped-reads.fasta
+
+#find -name "*temp" -print0 | xargs -0 rm || 
+#    rm "*temp" #if using macOS, which has a pretty underpowered `find` utility, cannot use -name flag; so just use `rm`
 ###################################################################################################
