@@ -20,7 +20,7 @@ usage() { echo -e "\nERROR: Missing input transcriptome(s) and/or input query an
           "Proper usage (for using  a fasta file for input; e.g.,  de novo assembled contigs or scaffolds): \n" \
                 "$0 -f de_novo_assemblies.fasta -q query_sequence.fa -t nucl|prot \n\n" \
           "Optional parameters: \n" \
-                "-e (evalue, e.g. 100, 1, or 1e-99; [default = 1e-9]) \n" \
+                "-e (evalue, e.g. 100, 1, or 1e-99; [default = 10]) \n" \
                 "-c (custom job name, for naming files [HIGHLY RECOMMENDED TO PROVIDE THIS]; \n" \
                 "    [default=none, guess from input filenames]) \n" \
                 "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
@@ -189,9 +189,9 @@ else
         usage
 fi
 
-# If e-value wasn provided by user, then set it to 1e-9
+# If e-value wasn provided by user, then set it to 10
 if [[ -z ${E_VALUE} ]]; then
-    E_VALUE="1e-9"
+    E_VALUE="10"
 fi
 ###################################################################################################
 

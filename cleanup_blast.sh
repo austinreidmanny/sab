@@ -87,7 +87,7 @@ if [[ -z "${SEQDUMP}" ]] ; then
     usage
 fi
 
-# If e-value wasn't provided by user, then set it to 1e-9
+# If e-value wasn't provided by user, then set it to 10
 if [[ -z ${E_VALUE} ]]; then
     E_VALUE="10"
 fi
