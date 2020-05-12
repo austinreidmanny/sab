@@ -19,9 +19,7 @@ usage() { echo -e "The objective of this script is to clean up the results of st
                         "-o (output directory for saving results; [default="./cleanup_results"]) \n" \
                         "-p (path to directory for database; " \
                             "[default='~/Documents/Research/sra/blastdbs/tvv_db'] ) \n" \
-                            "   [for TVV1-5 database (includes TVV5 genomes >=3000nt, in addition to all TVV1-4), use: \n" \
-                            "    '~/Documents/Research/sra/blastdbs/tvv1-5_db' ] \n" \
-                            "-n (sets nucleotide program to blastn; [default= dc-megablast] ) \n" \
+                        "-n (sets nucleotide program to blastn; [default= dc-megablast] ) \n" \
                         "-g (sets nucleotide program to megablast; [default= dc-megablast] ) \n\n" \
                       "Example of a complex run: \n" \
                       "$0 -i input.fasta -e 1e-3 -m 26 -g \n\n" \
