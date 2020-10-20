@@ -287,16 +287,16 @@ touch ${LOG_FILE}
 # Copy initial launch command into the log
 echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
 
-# Set directory to save SRA files
-
-# check if custom SRA_DIR variable is set, then ignore this block (Nibert lab computers have this)
-if [[ -z ${SRA_DIR} ]]; then
-
+# Set directory to save SRA files and build a blast database
   # If user provided an SRA_DIR on the command line, then set use that
   if [[ ! -z ${USER_PROVIDED_SRA_DIR} ]]; then
     SRA_DIR=${USER_PROVIDED_SRA_DIR}
 
-  # If user did not specify SRA directory, then save to temp dir
+  # If user did not provide a directory to save SRAs, but has the SRA_DIR in their environment (Nibert lab bioinformatics workstation does), use that
+  elif [[ ! -z ${SRA_DIR} ]]; then
+    SRA_DIR=$SRA_DIR
+
+  # If user did not provide a directory and there's no default, use /tmp/
   elif [[ -z ${USER_PROVIDED_SRA_DIR} ]]; then
     SRA_DIR="/tmp/"
 
@@ -305,8 +305,8 @@ if [[ -z ${SRA_DIR} ]]; then
     echo "Error trying to set up SRA directory. Exiting" && exit 11
 
   fi
-fi
 
+# Creat that directory
 mkdir -p ${SRA_DIR}
 
 # Make directory to save resulting BLASTDB
@@ -507,7 +507,9 @@ date | tee -a ${LOG_FILE}
 ###################################################################################################
 
 ###################################################################################################
-# Create FASTA sequence file of hits
+# Create FASTA sequence file of hits 
+#   (uses seqtk subseq rather than blastdbcmd since blastbdcmd cannot parse sequence names longer than 50 nt;
+#    this limitation could prevent accurate retrieval of sequences that rely on long names)
 ###################################################################################################
 seqtk subseq  ${CONCATENATED_FASTA} \
     <(cut -f 2 ${OUTPUT_DIRECTORY}/${BLAST_TASK}.${SAMPLES}.${BLAST_NAME_VIRUS_QUERY}.stand_alone_blast.results.txt | sort -u) > \
