@@ -293,11 +293,11 @@ echo -e "sab was launched with the following command: \n $0 $@ \n" > ${LOG_FILE}
     SRA_DIR=${USER_PROVIDED_SRA_DIR}
 
   # If user did not provide a directory to save SRAs, but has the SRA_DIR in their environment (Nibert lab bioinformatics workstation does), use that
-  elif [[ ! -z ${SRA_DIR} ]]; then
+  elif [[ -z ${USER_PROVIDED_SRA_DIR} ]] && [[ ! -z ${SRA_DIR} ]]; then
     SRA_DIR=$SRA_DIR
 
   # If user did not provide a directory and there's no default, use /tmp/
-  elif [[ -z ${USER_PROVIDED_SRA_DIR} ]]; then
+  elif [[ -z ${USER_PROVIDED_SRA_DIR} ]] && [[ -z ${SRA_DIR} ]]; then
     SRA_DIR="/tmp/"
 
   # Any other case would be an error
@@ -414,7 +414,7 @@ else
            echo -e "Downloading FASTQ file(s) for ${SAMPLE} at: \n `date`" | tee -a ${LOG_FILE};
            fasterq-dump \
            --split-3 \
-           -t /tmp \
+           -t "${SRA_DIR}/tmp/" \
            --progress --verbose \
            --skip-technical --rowid-as-name --print-read-nr \
            --threads=${NUM_THREADS} \

@@ -18,7 +18,7 @@ usage() { echo -e "The objective of this script is to clean up the results of st
                         "-m (maximum amount of memory to use [in GB]; [default=16] ) \n" \
                         "-o (output directory for saving results; [default="./cleanup_results"]) \n" \
                         "-p (path to directory for database; " \
-                            "[default='~/Documents/Research/sra/blastdbs/tvv_db'] ) \n" \
+                            "[default='~/Documents/Research/sra/blastdbs/tvv1-5_no-spaces-in-headers_db'] ) \n" \
                         "-n (sets nucleotide program to blastn; [default= dc-megablast] ) \n" \
                         "-g (sets nucleotide program to megablast; [default= dc-megablast] ) \n\n" \
                       "Example of a complex run: \n" \
@@ -97,7 +97,7 @@ fi
 
 # If path to NCBI nt database was not given, give default path
 if [[ -z "${PATH_TO_NT_DB}" ]]; then
-    PATH_TO_NT_DB="${HOME}/Documents/Research/sra/blastdbs/tvv_db"
+    PATH_TO_NT_DB="${HOME}/Documents/Research/sra/blastdbs/tvv1-5_no-spaces-in-headers_db"
 fi
 ###################################################################################################
 
